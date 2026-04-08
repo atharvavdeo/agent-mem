@@ -11,7 +11,7 @@ It helps you keep project context stable across chats by:
 ## Quick Start
 
 ```bash
-pip install agent-mem
+pip install atharva-agent-mem
 
 agent-mem init
 # Follow prompts (Obsidian optional)
@@ -63,7 +63,7 @@ If Obsidian path is missing or invalid, agent-mem automatically uses local fallb
 MCP is optional for v0.3.0. Base usage does not require it.
 
 ```bash
-pip install "agent-mem[mcp]"
+pip install "atharva-agent-mem[mcp]"
 agent-mem serve
 ```
 

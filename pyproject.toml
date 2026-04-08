@@ -1,8 +1,8 @@
 [project]
-name = "agent-mem"
+name = "atharva-agent-mem"
 version = "0.3.0"
 description = "Persistent memory layer for AI coding agents (Cursor / VS Code). Auto-summarizes sessions to Markdown / Obsidian."
-authors = [{ name = "Atharva", email = "your-email@example.com" }]
+authors = [{ name = "Atharva", email = "atharva.v.deo@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }

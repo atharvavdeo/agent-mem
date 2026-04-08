@@ -1,37 +1,54 @@
+# Agent-Mem Rules
+
 You have persistent project memory via agent-mem.
 
-Primary memory source:
-- Local-first file: .agent-memory/memory.md
-- Optional Obsidian target when configured: <vault>/Memory/Agent-Mem/
+## Objective
 
-Start-of-session rule (mandatory):
-- Before planning or coding, read the latest project memory.
-- If .agent-memory/memory.md exists, treat it as the source of truth.
-- If no memory exists yet, proceed normally and create memory after meaningful progress.
+- Keep durable project context across chats.
+- Prefer stored memory over long chat history.
 
-Context management rule:
-- Do not depend on long chat history for old decisions.
-- Prefer memory content (and recent summaries) over earlier conversation context.
+## Memory Source Of Truth
 
-When context grows long (~15-20 turns):
-- Announce that you are summarizing the session for memory.
-- Save a concise Markdown summary containing:
-  - Goal and outcome
-  - Key decisions and why
-  - Files changed and purpose
-  - Open tasks/blockers
-  - Next prioritized steps
+- Primary (default): .agent-memory/memory.md
+- Optional: [vault_path]/Memory/Agent-Mem/ when Obsidian mode is configured
 
-Summary quality rules:
-- Keep summaries short, factual, and actionable.
-- Never invent prior decisions; only record what happened.
-- Do not store secrets, tokens, passwords, or private keys in memory files.
+## Mandatory Start-Of-Session Workflow
 
-MCP compatibility (optional):
-- If agent-mem MCP tools are available, use query_memory / summarize_to_obsidian / list_recent_sessions.
-- If MCP tools are unavailable, read and update .agent-memory/memory.md directly using the same structure.
+1. Resolve project root and project name (root folder name).
+2. Load latest memory before planning or coding.
+3. If memory exists, treat it as authoritative project context.
+4. If memory does not exist, continue normally and create or update it after meaningful progress.
 
-Project naming:
-- Use the repository root folder name as project_name for memory operations.
+## Mandatory Summarization Triggers
+
+- Context pressure (roughly 15-20 turns)
+- Major milestone completed
+- Before ending session when important decisions were made
+
+## Required Summary Structure
+
+Use concise Markdown with these sections in order:
+
+- Goal
+- Outcome
+- Key decisions (with rationale)
+- Files changed (path + reason)
+- Open tasks or blockers
+- Next prioritized steps
+
+## Memory Write Rules
+
+- Append new information; do not delete prior history unless it is clearly obsolete and corrected.
+- Be factual and specific; never invent decisions or changes.
+- Never write secrets (tokens, API keys, passwords, private credentials).
+
+## MCP Compatibility (Optional)
+
+- If MCP tools are available: use query_memory, summarize_to_obsidian, list_recent_sessions.
+- If MCP tools are unavailable: read and update .agent-memory/memory.md directly with the same structure.
+
+## Project Name Rule
+
+- Always use the repository root folder name as project_name.
 
 Project name for this workspace: agent-mem
