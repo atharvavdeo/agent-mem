@@ -1,12 +1,13 @@
-import typer
-from .config import CONFIG_FILE, get_config, save_config
 from pathlib import Path
 import json
 import shutil
 import sys
 from typing import Dict, List
 
-from .memory import get_fallback_memory_file
+import typer
+
+from .config import CONFIG_FILE, get_config, save_config
+from .memory import get_fallback_memory_file, get_memory_dir, initialize_storage, recall_memory, write_session_summary
 
 app = typer.Typer()
 
@@ -243,12 +244,26 @@ def _build_mcp_json_with_python(python_executable: str) -> dict:
     }
 
 
-def _ensure_local_memory_initialized(project_root: Path):
-    fallback_file = get_fallback_memory_file(project_root)
-    if fallback_file.exists():
-        return
-    fallback_file.parent.mkdir(parents=True, exist_ok=True)
-    fallback_file.write_text("# Agent Memory\n\n", encoding="utf-8")
+def _project_root() -> Path:
+    return Path.cwd().resolve()
+
+
+def _read_summary_input(summary: str, summary_file: str, stdin: bool) -> str:
+    if summary.strip():
+        return summary.strip()
+    if summary_file.strip():
+        summary_path = Path(summary_file.strip()).expanduser().resolve()
+        if not summary_path.exists():
+            typer.echo(f"❌ Summary file not found: {summary_path}", err=True)
+            raise typer.Exit(1)
+        return summary_path.read_text(encoding="utf-8").strip()
+    if stdin:
+        data = sys.stdin.read().strip()
+        if data:
+            return data
+
+    typer.echo("❌ Provide summary text with --summary, --summary-file, or --stdin.", err=True)
+    raise typer.Exit(1)
 
 
 @app.command()
@@ -270,13 +285,24 @@ def init():
             typer.echo("⚠️ Path does not exist. Falling back to local memory.md", err=True)
     else:
         typer.echo("✅ Using simple local memory.md fallback in project folder")
-        _ensure_local_memory_initialized(Path.cwd().resolve())
 
     save_config(config)
     typer.echo(f"✅ Config saved to {CONFIG_FILE}")
 
-    project_root = Path.cwd().resolve()
+    project_root = _project_root()
+    created_storage = initialize_storage(project_root)
+    memory_dir = get_memory_dir(project_root)
     typer.echo(f"Project root for setup: {project_root}")
+    typer.echo(f"Memory storage   : {memory_dir}")
+    if created_storage:
+        typer.echo("✅ Created storage files:")
+        for path in created_storage:
+            typer.echo(f"  - {path}")
+    if config.get("use_obsidian"):
+        typer.echo("Obsidian mode    : Connected")
+        typer.echo("Notes written here will appear in Obsidian automatically because they are plain Markdown inside your vault.")
+    else:
+        typer.echo("Obsidian mode    : Disabled (local fallback active)")
 
     if typer.confirm(
         "Create automatic instruction files for Cursor/Claude/Antigravity/OpenCode? (recommended)",
@@ -303,14 +329,17 @@ def init():
             typer.echo(f"  - {config_path}")
 
     typer.echo("\nSetup complete!")
-    typer.echo("Next: add AGENT-MEM-RULES.md to your IDE custom instructions.")
+    typer.echo("Recommended next steps:")
+    typer.echo("  1. Add AGENT-MEM-RULES.md to your IDE custom instructions")
+    typer.echo('  2. Save a session with: agent-mem summarize --summary "..."')
+    typer.echo('  3. Recall context with: agent-mem recall "current goal"')
     typer.echo('Optional MCP mode: pip install "easy-agent-mem[mcp]" && agent-mem serve')
 
 
 @app.command()
 def setup():
     """Set up instruction files + MCP configs for the current project."""
-    project_root = Path.cwd().resolve()
+    project_root = _project_root()
 
     result = _create_instruction_files(project_root)
     written_paths = _create_local_mcp_configs(project_root)
@@ -339,7 +368,7 @@ def setup_vscode(
     ),
 ):
     """Write .vscode/mcp.json using the currently active Python interpreter."""
-    project_root = Path.cwd().resolve()
+    project_root = _project_root()
     config_path = project_root / ".vscode" / "mcp.json"
     selected_python = _resolve_python_for_mcp(project_root, python)
 
@@ -360,11 +389,41 @@ def print_mcp_json(
     ),
 ):
     """Print a ready-to-paste MCP JSON block without writing any files."""
-    project_root = Path.cwd().resolve()
+    project_root = _project_root()
     selected_python = _resolve_python_for_mcp(project_root, python)
     block = _build_mcp_json_with_python(selected_python)
 
     typer.echo(json.dumps(block, indent=2))
+
+
+@app.command()
+def summarize(
+    summary: str = typer.Option("", "--summary", help="Inline summary text to save."),
+    summary_file: str = typer.Option("", "--summary-file", help="Path to a markdown/text file containing the summary."),
+    stdin: bool = typer.Option(False, "--stdin", help="Read summary text from stdin."),
+    project_name: str = typer.Option("", "--project-name", help="Override the inferred project name."),
+):
+    """Save a structured session summary to Obsidian or local fallback storage."""
+    project_root = _project_root()
+    effective_project_name = project_name.strip() or _project_name_from_root(project_root)
+    summary_text = _read_summary_input(summary, summary_file, stdin)
+
+    saved_path = write_session_summary(effective_project_name, summary_text, project_root=project_root)
+    mode = "Obsidian" if get_config().get("use_obsidian") else "local fallback"
+
+    typer.echo(f"✅ Summary saved to {mode}: {saved_path}")
+
+
+@app.command()
+def recall(
+    query: str = typer.Argument(..., help="Short query describing the context you want recalled."),
+    project_name: str = typer.Option("", "--project-name", help="Override the inferred project name."),
+    count: int = typer.Option(5, "--count", min=1, max=20, help="Number of recent memory sources to inspect."),
+):
+    """Recall the most relevant saved memory for a task or question."""
+    project_root = _project_root()
+    effective_project_name = project_name.strip() or _project_name_from_root(project_root)
+    typer.echo(recall_memory(effective_project_name, query, count=count, project_root=project_root))
 
 
 @app.command()
@@ -393,15 +452,18 @@ def serve():
 def status():
     """Show the configured vault and stored session count."""
     config = get_config()
-    project_root = Path.cwd().resolve()
+    project_root = _project_root()
     vault = config.get("obsidian_vault")
 
     if config.get("use_obsidian") and vault:
         memory_dir = Path(vault) / "Memory" / "Agent-Mem"
-        count = len(list(memory_dir.glob("*.md"))) if memory_dir.exists() else 0
+        count = len(list(memory_dir.glob("*-session.md"))) if memory_dir.exists() else 0
+        index_path = memory_dir / "Index.md"
         typer.echo("Storage mode   : Obsidian")
         typer.echo(f"Obsidian vault : {vault}")
-        typer.echo(f"Memory notes   : {count} sessions stored")
+        typer.echo(f"Memory folder  : {memory_dir}")
+        typer.echo(f"Index note     : {index_path}")
+        typer.echo(f"Session notes  : {count} stored")
         return
 
     fallback_file = project_root / ".agent-memory" / "memory.md"

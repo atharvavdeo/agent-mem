@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import os
 import sys
 from pathlib import Path
 
@@ -9,8 +10,19 @@ if sys.version_info >= (3, 11):
 else:  # pragma: no cover
     tomllib = importlib.import_module("tomli")
 
-CONFIG_DIR = Path.home() / ".config" / "agent-mem"
-CONFIG_FILE = CONFIG_DIR / "config.toml"
+def _config_dir() -> Path:
+    override = os.environ.get("AGENT_MEM_CONFIG_DIR", "").strip()
+    if override:
+        return Path(override).expanduser().resolve()
+    return Path.home() / ".config" / "agent-mem"
+
+
+def _config_file() -> Path:
+    return _config_dir() / "config.toml"
+
+
+CONFIG_DIR = _config_dir()
+CONFIG_FILE = _config_file()
 DEFAULT_CONFIG = {"use_obsidian": False, "obsidian_vault": None}
 
 
@@ -49,6 +61,9 @@ def _serialize_toml(config: dict) -> str:
 
 
 def get_config() -> dict:
+    global CONFIG_DIR, CONFIG_FILE
+    CONFIG_DIR = _config_dir()
+    CONFIG_FILE = _config_file()
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     if not CONFIG_FILE.exists():
         return dict(DEFAULT_CONFIG)
@@ -58,5 +73,8 @@ def get_config() -> dict:
     return _normalize_config(loaded)
 
 def save_config(config: dict):
+    global CONFIG_DIR, CONFIG_FILE
+    CONFIG_DIR = _config_dir()
+    CONFIG_FILE = _config_file()
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(_serialize_toml(_normalize_config(config)), encoding="utf-8")

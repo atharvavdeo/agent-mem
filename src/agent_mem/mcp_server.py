@@ -5,42 +5,9 @@ except ImportError:  # pragma: no cover - fallback for older installs
 
 from pathlib import Path
 
-from .memory import (
-    get_fallback_memory_file,
-    is_obsidian_enabled,
-    list_recent_session_files,
-    write_session_summary,
-)
+from .memory import get_fallback_memory_file, is_obsidian_enabled, list_recent_session_files, recall_memory, write_session_summary
 
 mcp = FastMCP("agent-mem")
-
-
-def _score_line(line: str, query: str) -> int:
-    line_lower = line.lower()
-    query_lower = query.lower().strip()
-    if not query_lower:
-        return 0
-
-    score = 0
-    for word in query_lower.split():
-        if word and word in line_lower:
-            score += 2
-    if query_lower in line_lower:
-        score += 5
-    return score
-
-
-def _scored_excerpt(content: str, query: str, limit: int = 12) -> list[str]:
-    lines = [line.strip() for line in content.splitlines() if line.strip()]
-    scored = sorted(
-        ((line, _score_line(line, query)) for line in lines),
-        key=lambda item: item[1],
-        reverse=True,
-    )
-    matches = [line for line, score in scored if score > 0][:limit]
-    if matches:
-        return matches
-    return [content[:800].strip()] if content.strip() else []
 
 @mcp.tool()
 def query_memory(project_name: str, query: str) -> str:
@@ -52,23 +19,7 @@ def query_memory(project_name: str, query: str) -> str:
     - Fallback mode: reads local .agent-memory/memory.md
     """
     project_root = Path.cwd().resolve()
-    files = list_recent_session_files(project_name, count=5, project_root=project_root)
-
-    if not files:
-        return "No memory yet for this project. Start by chatting, then save a session summary."
-
-    mode = "Obsidian" if is_obsidian_enabled() else "Local memory.md"
-    result = [f"## Latest Memory ({mode})"]
-    for file_path in files:
-        content = file_path.read_text(encoding="utf-8")
-        matches = _scored_excerpt(content, query, limit=12)
-
-        result.append(f"### {file_path.name}")
-        if matches:
-            result.extend(matches)
-        result.append("")
-
-    return "\n".join(result)[:6000]
+    return recall_memory(project_name, query, count=5, project_root=project_root)
 
 @mcp.tool()
 def summarize_to_obsidian(project_name: str, summary: str) -> str:

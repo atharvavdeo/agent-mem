@@ -1,16 +1,15 @@
 [project]
 name = "easy-agent-mem"
-version = "0.3.0"
-description = "Persistent memory layer for AI coding agents (Cursor / VS Code). Auto-summarizes sessions to Markdown / Obsidian."
+version = "0.4.0"
+description = "CLI-first persistent memory for AI coding sessions with direct Obsidian note writing and local fallback storage."
 authors = [{ name = "Atharva", email = "atharva.v.deo@gmail.com" }]
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 keywords = ["ai", "agent", "memory", "obsidian", "claude", "cursor", "mcp"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Topic :: Software Development :: Libraries",
 ]
