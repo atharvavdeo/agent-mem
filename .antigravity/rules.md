@@ -7,7 +7,8 @@ Platform target: antigravity
 Behavior requirements:
 
 - Load memory at the start of each session.
-- Prefer Obsidian-backed notes or `.agent-memory/memory.md` over long chat history.
+- If the user pastes an `agent-mem watch` handoff prompt, execute it immediately.
+- Prefer Obsidian-backed notes or `.agent-memory/active.md` and `.agent-memory/memory.md` over long chat history.
 - Summarize after important changes, milestones, or context growth.
 - Keep summaries structured and implementation-oriented.
 - Never fabricate historical context.

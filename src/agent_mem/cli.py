@@ -2,13 +2,12 @@ from pathlib import Path
 import json
 import shutil
 import sys
-import time
 from typing import Dict, List
 
 import click
 import typer
 
-from .config import CONFIG_FILE, get_config, save_config
+from .config import CONFIG_FILE, get_config, get_groq_api_key, save_config
 from .memory import (
     get_active_context_file,
     get_fallback_memory_file,
@@ -37,6 +36,11 @@ def _confirm(text: str, default: bool = False) -> bool:
     return click.confirm(styled, default=default, show_default=True)
 
 
+def _prompt_secret(text: str) -> str:
+    styled = click.style(text, fg="bright_yellow")
+    return click.prompt(styled, hide_input=True, show_default=False).strip()
+
+
 def _project_name_from_root(project_root: Path) -> str:
     return project_root.resolve().name
 
@@ -49,6 +53,9 @@ def _quickstart_lines(project_root: Path | None = None) -> list[str]:
         "",
         "Most useful commands:",
         "  agent-mem init",
+        "  agent-mem configure-groq",
+        "  agent-mem test-watch --dry-run",
+        "  agent-mem watch --dry-run --once",
         "  agent-mem checkpoint --stdin",
         '  agent-mem recall \"current goal\"',
         "  agent-mem prepare-next",
@@ -58,6 +65,7 @@ def _quickstart_lines(project_root: Path | None = None) -> list[str]:
         "  - Do not run `agent-mem serve` manually.",
         "  - During `init`, choose the IDE you actually use.",
         "  - Only that IDE's prompt/MCP files will be created.",
+        "  - `watch` generates a one-paste handoff prompt for your IDE chat.",
     ]
 
 
@@ -73,31 +81,36 @@ def main(ctx: typer.Context):
 def _rules_body(project_name: str) -> str:
     return f"""# Agent-Mem Rules
 
-You are operating inside a repository that uses `agent-mem` for persistent coding memory.
+This repository uses `agent-mem` for persistent coding memory.
 
 Project name: {project_name}
 
-## Primary Goal
+Read these rules at the start of every session. Follow them on every response. Do not silently ignore them.
 
-Preserve accurate project context across chats while keeping the live context window small.
+## Non-Negotiable Behavior
 
-You must prefer saved memory over stale chat history and you must keep memory current whenever meaningful decisions are made.
+1. Load saved memory before planning, coding, or answering questions about prior work.
+2. Prefer saved memory over stale chat history.
+3. Never invent historical decisions.
+4. If the user pastes a watch-generated handoff prompt, pause normal work and execute the handoff immediately.
 
-## Memory Priority Order
+## Memory Source Of Truth
 
-1. If Obsidian mode is configured, the primary memory store is the vault under `Memory/Agent-Mem/`.
-2. Otherwise, the primary memory store is `.agent-memory/memory.md`.
+Use this priority order:
+
+1. If Obsidian mode is configured, use the latest notes under `Memory/Agent-Mem/`.
+2. Otherwise, use `.agent-memory/active.md` first and `.agent-memory/memory.md` second.
 3. Old chat history is lower priority than saved memory.
-4. Never invent historical decisions that do not appear in memory or the codebase.
+4. Code on disk overrides memory if they conflict. If they conflict, say so explicitly.
 
-## Start-Of-Session Requirements
+## Required Start-Of-Session Workflow
 
-At the start of every new session:
+At the beginning of a new session:
 
 1. Resolve the repository root.
-2. Resolve `project_name` from the repository root folder name unless the user explicitly overrides it.
-3. Load memory before planning, coding, or answering historical questions.
-4. Treat saved memory as the authoritative summary of previous sessions.
+2. Resolve the project name from the root folder name unless the user overrides it.
+3. Load memory before proposing work.
+4. State the current goal only after reading memory.
 
 If MCP tools are available:
 
@@ -105,24 +118,23 @@ If MCP tools are available:
 
 If MCP tools are unavailable:
 
-- read the latest Obsidian note set or `.agent-memory/memory.md` directly
-- summarize what you learned before continuing
+- read the latest memory files directly
+- continue only after you have incorporated them
 
-## When To Summarize
+## Required Summarization Triggers
 
-You must summarize when any of these happen:
+You must summarize when:
 
-- context becomes long or repetitive
-- a milestone or subtask completes
-- architecture, API, or workflow decisions change
-- multiple files were edited for one logical change
-- the user is about to stop or switch topics
+- context is getting long or repetitive
+- a milestone is complete
+- multiple files were changed for one logical task
+- architecture, API, workflow, or design decisions changed
+- the user is about to stop
+- the user pastes an `agent-mem watch` handoff prompt
 
-## Required Summary Quality
+## Summary Format
 
-Every saved summary must be factual, concise, and implementation-oriented.
-
-It must include these sections in this order:
+Every summary must use these exact sections in this exact order:
 
 - Goal
 - Outcome
@@ -131,67 +143,71 @@ It must include these sections in this order:
 - Open tasks or blockers
 - Next prioritized steps
 
-## Double-Check Rules Before Saving
+## Summary Quality Rules
 
-Before writing memory:
+Before saving memory, verify that:
 
-- verify the summary matches the actual files changed
-- verify decisions are explicit, not implied guesses
-- verify open tasks are still open
-- remove secrets, tokens, passwords, or raw credentials
-- keep wording specific enough to be useful in a later session
+- the goal matches the actual task
+- the outcome reflects what was really completed
+- key decisions are explicit, not implied guesses
+- file paths are concrete
+- blockers are still current
+- next steps are actionable
+- no secrets or credentials appear anywhere
 
-## Obsidian Rules
+## Obsidian-Specific Requirements
 
 When Obsidian mode is enabled:
 
-- prefer saving through `agent-mem summarize` or `summarize_to_obsidian`
-- preserve wiki-links and note structure
-- do not manually break frontmatter or note headings
-- keep references usable for Graph view and backlinks
+- write summaries as dense, durable engineering notes
+- preserve frontmatter, headings, and wiki-links
+- make decisions and file references explicit so the notes stay useful later
+- prefer high-signal summaries over long narrative chat recaps
 
-## Fallback Rules
+## Forbidden Behavior
 
-When only `.agent-memory/memory.md` exists:
+Do not:
 
-- append structured summaries
-- do not overwrite prior useful context
-- correct prior context only when it is clearly outdated or wrong
+- claim a previous decision without memory or code evidence
+- skip memory loading at session start
+- treat a watch prompt like a normal chat message
+- write apology text into memory
+- dump vague prose when a structured summary is required
 
-## Tool Preference
+## Good Behavior Example
 
-Preferred workflow:
+- Read memory
+- State current goal
+- Do the work
+- Save a structured summary
+- Produce a short fresh-chat handoff when context is bloated
 
-1. `query_memory`
-2. do work
-3. `summarize_to_obsidian` or `agent-mem summarize`
-4. start fresh session if context is bloated
+## Bad Behavior Example
 
-## Response Behavior
-
-- prefer memory-backed answers for questions about prior work
-- if memory is missing, say that clearly
-- suggest summarization proactively when context grows
-- never claim a past decision unless you saw it in memory or code
+- Ignore memory
+- Reconstruct history from guesswork
+- Keep working in a bloated chat
+- Save an unstructured paragraph instead of a proper summary
 """
 
 
 def _cursor_rule_content(project_name: str) -> str:
     return f"""---
-description: Enforce agent-mem persistent memory workflow for Cursor
+description: Enforce agent-mem memory loading, handoff handling, and structured summaries
 alwaysApply: true
 ---
 
-Use `AGENT-MEM-RULES.md` in the repository root as the canonical memory policy.
+Use `AGENT-MEM-RULES.md` in the repository root as the canonical policy. Do not override it with your own assumptions.
 
 Cursor-specific operating rules:
 
 - Project name for this workspace is `{project_name}` unless the user explicitly says otherwise.
-- At the start of every new chat, load memory before planning.
+- At the start of every new chat, load memory before planning or coding.
 - If the `agent-mem` MCP tools are visible, call `query_memory` immediately.
 - If MCP tools are not visible, read the saved memory artifacts directly from the repo or Obsidian path.
+- Treat `.agent-memory/active.md` as the current handoff state when local fallback mode is active.
 - Before any non-trivial code edit, ground yourself in saved memory and current file state.
-- When a task spans multiple files, architecture decisions, or more than a short exchange, plan to summarize before the session ends.
+- If the user pastes a watch-generated handoff prompt, execute it immediately and do not treat it like an ordinary question.
 
 Cursor execution checklist:
 
@@ -200,13 +216,16 @@ Cursor execution checklist:
 3. Do the work.
 4. Re-check whether key decisions changed.
 5. Save a structured summary if anything important happened.
+6. If context is bloated, generate a fresh-chat handoff.
 
 Cursor summarization rules:
 
 - Summarize on milestone completion.
 - Summarize when context is starting to repeat.
 - Summarize before ending a session with unresolved work.
+- If the user pastes a handoff prompt generated by `agent-mem watch`, execute it immediately.
 - Summaries must include decisions, changed files, open tasks, and next steps.
+- In Obsidian mode, make the summary dense and durable: decisions, files, blockers, next actions, no fluff.
 
 Cursor reliability rules:
 
@@ -214,13 +233,14 @@ Cursor reliability rules:
 - Do not hallucinate previous decisions.
 - Do not write secrets into memory.
 - If memory and code conflict, report the conflict and prefer verified code state.
+- If memory is missing, say that clearly instead of fabricating history.
 """
 
 
 def _claude_instructions_content(project_name: str) -> str:
     return f"""# Agent Memory Instructions
 
-Use `AGENT-MEM-RULES.md` as the canonical source of truth.
+Use `AGENT-MEM-RULES.md` as the canonical source of truth. Read and follow it every session.
 
 Project name: {project_name}
 
@@ -230,6 +250,7 @@ Mandatory behavior at session start:
 - Resolve the project name from the repository root and keep it consistent.
 - Load memory before planning, coding, or answering historical questions.
 - Prefer saved memory over old chat history.
+- If the user pastes a watch-generated handoff prompt, execute that handoff before anything else.
 
 If MCP tools are available:
 
@@ -239,7 +260,8 @@ If MCP tools are available:
 If MCP tools are unavailable:
 
 - read the latest memory artifact directly
-- use `agent-mem summarize` conventions when preparing a summary
+- prefer `.agent-memory/active.md` over older memory when fallback mode is active
+- still produce the structured summary in chat if direct save tools are unavailable
 
 Mandatory summarization triggers:
 
@@ -248,6 +270,7 @@ Mandatory summarization triggers:
 - important design or implementation decision
 - multiple-file change
 - session handoff or stop point
+- a watch-generated handoff prompt pasted by the user
 
 Required summary contents:
 
@@ -264,6 +287,7 @@ Safety rules:
 - never write secrets into memory
 - if memory conflicts with the codebase, say so explicitly
 - prefer verified state over guessed state
+- in Obsidian mode, keep summaries dense, specific, and useful as future engineering notes
 """
 
 
@@ -278,6 +302,7 @@ Platform target: {path_hint}
 Behavior requirements:
 
 - Load memory at the start of each session.
+- If the user pastes an `agent-mem watch` handoff prompt, execute it immediately.
 - Prefer Obsidian-backed notes or `.agent-memory/memory.md` over long chat history.
 - Summarize after important changes, milestones, or context growth.
 - Keep summaries structured and implementation-oriented.
@@ -300,11 +325,11 @@ If they are not, read and write the memory artifacts directly while preserving s
 
 def _ide_setup_instructions(target: str) -> str:
     instructions = {
-        "cursor": "Cursor setup: reload the workspace. agent-mem created `.cursor/rules/agent-mem.mdc` and `.cursor/mcp.json`. Start a fresh chat; Cursor should load both automatically.",
-        "claude": "Claude / VS Code setup: reload the workspace. agent-mem created `.claude/instructions.md` and `.vscode/mcp.json`. If your Claude extension does not auto-read `.claude/instructions.md`, paste `AGENT-MEM-RULES.md` into your custom instructions once.",
-        "antigravity": "Antigravity setup: reload the workspace. agent-mem created `.antigravity/rules.md`. If Antigravity supports MCP via VS Code settings in your setup, add the generated `.vscode/mcp.json` only if needed.",
-        "opencode": "OpenCode setup: reload the workspace. agent-mem created `.opencode/instructions.md`. If OpenCode needs MCP separately, use `agent-mem print-mcp-json` and add it in that product's MCP settings.",
-        "none": "No IDE files were created. You can still use `agent-mem checkpoint --stdin`, `agent-mem prepare-next`, and `agent-mem recall` directly from the terminal.",
+        "cursor": "Cursor setup: reload the workspace. agent-mem created `.cursor/rules/agent-mem.mdc` and `.cursor/mcp.json`. Start a fresh chat. If `agent-mem watch` later copies a handoff prompt, paste it into the current Cursor chat, let Cursor summarize/save memory, then start a fresh chat with the starter block it returns.",
+        "claude": "Claude / VS Code setup: reload the workspace. agent-mem created `.claude/instructions.md` and `.vscode/mcp.json`. If your Claude extension does not auto-read `.claude/instructions.md`, paste `AGENT-MEM-RULES.md` into custom instructions once. If `agent-mem watch` copies a handoff prompt, paste it into the current Claude chat, let it summarize/save memory, then start a fresh chat.",
+        "antigravity": "Antigravity setup: reload the workspace. agent-mem created `.antigravity/rules.md`. If Antigravity needs MCP separately, use `agent-mem print-mcp-json`. If `agent-mem watch` copies a handoff prompt, paste it into the active chat and let the agent summarize/save memory before starting fresh.",
+        "opencode": "OpenCode setup: reload the workspace. agent-mem created `.opencode/instructions.md`. If OpenCode needs MCP separately, use `agent-mem print-mcp-json` and add it in that product's MCP settings. If `agent-mem watch` copies a handoff prompt, paste it into the active chat and let the agent handle the summary/handoff.",
+        "none": "No IDE files were created. You can still use `agent-mem checkpoint --stdin`, `agent-mem prepare-next`, `agent-mem recall`, and `agent-mem watch` directly from the terminal.",
     }
     return instructions[target]
 
@@ -473,81 +498,26 @@ def _read_summary_input(summary: str, summary_file: str, stdin: bool) -> str:
     raise typer.Exit(1)
 
 
-def _watch_ignore(path: Path) -> bool:
-    ignored_parts = {
-        ".git",
-        ".agent-memory",
-        ".cursor",
-        ".claude",
-        ".antigravity",
-        ".opencode",
-        ".vscode",
-        "dist",
-        "build",
-        "__pycache__",
-        ".pytest_cache",
-        ".mypy_cache",
-    }
-    return any(part in ignored_parts for part in path.parts)
+@app.command("configure-groq")
+def configure_groq(
+    api_key: str = typer.Option("", "--api-key", help="Groq API key. If omitted, prompt securely."),
+    model: str = typer.Option("", "--model", help="Groq model to use for watch handoff generation."),
+):
+    """Save Groq watch configuration for one-paste handoff generation."""
+    config = get_config()
+    resolved_key = api_key.strip() or _prompt_secret("Groq API key")
+    if not resolved_key:
+        _echo("❌ Groq API key is required.", err=True)
+        raise typer.Exit(1)
 
+    config["groq_api_key"] = resolved_key
+    if model.strip():
+        config["groq_model"] = model.strip()
+    save_config(config)
 
-def _snapshot_project_files(project_root: Path) -> Dict[str, float]:
-    snapshot: Dict[str, float] = {}
-    for path in project_root.rglob("*"):
-        if not path.is_file():
-            continue
-        if _watch_ignore(path.relative_to(project_root)):
-            continue
-        snapshot[str(path.relative_to(project_root))] = path.stat().st_mtime
-    return snapshot
-
-
-def _diff_snapshots(previous: Dict[str, float], current: Dict[str, float]) -> List[str]:
-    changed: set[str] = set()
-    previous_keys = set(previous)
-    current_keys = set(current)
-
-    for key in previous_keys ^ current_keys:
-        changed.add(key)
-
-    for key in previous_keys & current_keys:
-        if previous[key] != current[key]:
-            changed.add(key)
-
-    return sorted(changed)
-
-
-def _auto_summary(changed_files: List[str], project_name: str) -> str:
-    bullet_files = "\n".join(f"- {path}" for path in changed_files[:25]) or "- No files detected"
-    extra_note = ""
-    if len(changed_files) > 25:
-        extra_note = f"\nAdditional changed files not shown: {len(changed_files) - 25}"
-
-    return f"""## Goal
-
-Automatic checkpoint created by `agent-mem watch`.
-
-## Outcome
-
-Saved an automated memory checkpoint after file activity settled.
-
-## Key decisions
-
-- Automatic watch-based checkpoint captured current work-in-progress state for {project_name}.
-
-## Files changed
-
-{bullet_files}{extra_note}
-
-## Open tasks or blockers
-
-- Review the changed files and replace this automated checkpoint with a richer manual summary if architectural decisions were made.
-
-## Next prioritized steps
-
-- Continue the current task.
-- Run `agent-mem summarize` manually after the next meaningful milestone for a higher-quality summary.
-"""
+    _echo(f"✅ Groq API key saved to {CONFIG_FILE}")
+    _echo(f"Groq model      : {get_config().get('groq_model')}")
+    _echo("You can now run: agent-mem watch --once --dry-run")
 
 
 @app.command()
@@ -556,11 +526,18 @@ def init():
     _echo("agent-mem setup (Obsidian path is optional)")
     vault = _prompt("Full path to your Obsidian vault (press Enter to skip and use local memory.md)", default="")
 
-    config = {"use_obsidian": False, "obsidian_vault": None}
+    existing = get_config()
+    config = {
+        "use_obsidian": False,
+        "obsidian_vault": None,
+        "groq_api_key": existing.get("groq_api_key"),
+        "groq_model": existing.get("groq_model"),
+    }
     if vault.strip():
         vault_path = Path(vault).expanduser().resolve()
         if vault_path.exists():
-            config = {"use_obsidian": True, "obsidian_vault": str(vault_path)}
+            config["use_obsidian"] = True
+            config["obsidian_vault"] = str(vault_path)
             _echo(f"✅ Using Obsidian vault: {vault_path}")
         else:
             _echo("⚠️ Path does not exist. Falling back to local memory.md", err=True)
@@ -606,6 +583,18 @@ def init():
 
     _echo("\nSetup complete!")
     _echo(_ide_setup_instructions(ide_target))
+    if get_groq_api_key():
+        _echo("Watch mode      : Ready")
+        _echo(f"Groq model      : {get_config().get('groq_model')}")
+        _echo("Run this when you want automatic handoff generation:")
+        _echo("  agent-mem watch --dry-run --once")
+        _echo("Then remove --dry-run for real clipboard handoff prompts.")
+    else:
+        _echo("Watch mode      : Not configured yet")
+        _echo("To enable one-paste handoff prompts:")
+        _echo("  1. export GROQ_API_KEY=...   # temporary")
+        _echo("  2. or run: agent-mem configure-groq")
+
     _echo("Terminal-only test:")
     _echo("  1. agent-mem checkpoint --stdin")
     _echo("  2. agent-mem prepare-next")
@@ -744,64 +733,103 @@ def recall(
     _echo(recall_memory(effective_project_name, query, count=count, project_root=project_root))
 
 
-@app.command()
-def watch(
-    interval: float = typer.Option(2.0, "--interval", min=0.5, help="Polling interval in seconds."),
-    quiet_seconds: int = typer.Option(20, "--quiet-seconds", min=1, help="Required quiet time before a checkpoint is saved."),
-    min_changes: int = typer.Option(3, "--min-changes", min=1, help="Minimum number of changed files before saving an automatic checkpoint."),
-    once: bool = typer.Option(False, "--once", help="Exit after the first automatic checkpoint is saved."),
+@app.command("test-watch")
+def test_watch(
+    dry_run: bool = typer.Option(False, "--dry-run", help="Generate a local canned handoff instead of calling Groq."),
     project_name: str = typer.Option("", "--project-name", help="Override the inferred project name."),
+    files: List[str] = typer.Option([], "--file", help="File path to include in the test handoff. Repeatable."),
 ):
-    """Watch the repo for file activity and save automatic checkpoint summaries."""
+    """Generate a watch handoff immediately without waiting for file events."""
     project_root = _project_root()
     effective_project_name = project_name.strip() or _project_name_from_root(project_root)
-
     initialize_storage(project_root)
-    baseline = _snapshot_project_files(project_root)
-    pending_changes: set[str] = set()
-    last_change_at: float | None = None
 
-    _echo(f"Watching {project_root}")
-    _echo(f"Project name     : {effective_project_name}")
-    _echo(f"Polling interval : {interval}s")
-    _echo(f"Quiet threshold  : {quiet_seconds}s")
-    _echo(f"Min changes      : {min_changes}")
-    _echo("Press Ctrl+C to stop.")
+    if not dry_run and not get_groq_api_key():
+        _echo("❌ Groq is not configured.", err=True)
+        _echo("Set GROQ_API_KEY in your shell or run: agent-mem configure-groq", err=True)
+        _echo("If you just want to test formatting and delivery, run: agent-mem test-watch --dry-run", err=True)
+        raise typer.Exit(1)
+
+    from .watcher import (
+        WatchResult,
+        build_trigger,
+        copy_to_clipboard,
+        generate_dry_run_prompt,
+        generate_handoff_prompt,
+        render_alert,
+        write_handoff_outbox,
+    )
+
+    changed_files = [item.strip() for item in files if item.strip()]
+    trigger = build_trigger(
+        project_root=project_root,
+        project_name=effective_project_name,
+        changed_files=changed_files,
+        quiet_seconds=0,
+    )
+    try:
+        prompt = generate_dry_run_prompt(trigger) if dry_run else generate_handoff_prompt(trigger)
+        outbox_path = write_handoff_outbox(project_root, prompt)
+        result = WatchResult(prompt=prompt, clipboard_ok=copy_to_clipboard(prompt), outbox_path=outbox_path)
+    except RuntimeError as exc:
+        _echo(f"❌ {exc}", err=True)
+        raise typer.Exit(1)
+
+    _echo(render_alert(result, dry_run=dry_run))
+    _echo("")
+    _echo(prompt)
+
+
+@app.command()
+def watch(
+    quiet_seconds: int = typer.Option(180, "--quiet-seconds", min=5, help="Required quiet time after file activity before generating a handoff."),
+    min_changes: int = typer.Option(5, "--min-changes", min=1, help="Minimum number of changed files before a handoff triggers."),
+    min_diff_lines: int = typer.Option(400, "--min-diff-lines", min=1, help="Minimum git diff line count before a handoff triggers."),
+    once: bool = typer.Option(False, "--once", help="Exit after the first automatic checkpoint is saved."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Skip the Groq call and generate a canned handoff prompt for testing."),
+    project_name: str = typer.Option("", "--project-name", help="Override the inferred project name."),
+):
+    """Watch the repo and generate one-paste handoff prompts for your IDE chat."""
+    project_root = _project_root()
+    effective_project_name = project_name.strip() or _project_name_from_root(project_root)
+    initialize_storage(project_root)
+
+    if not dry_run and not get_groq_api_key():
+        _echo("❌ Groq is not configured.", err=True)
+        _echo("Set GROQ_API_KEY in your shell or run: agent-mem configure-groq", err=True)
+        _echo("If you just want to test the watcher flow, run: agent-mem watch --dry-run --once", err=True)
+        raise typer.Exit(1)
+
+    from .watcher import render_alert, run_watch_loop
+
+    def _emit(message: str):
+        _echo(message)
+
+    def _handle_result(result):
+        _echo("")
+        _echo(render_alert(result, dry_run=dry_run))
+        _echo("")
+        _echo(result.prompt)
+        _echo("")
+        _echo("Next step: paste the prompt into your current IDE chat, let the agent summarize/save memory, then start a fresh chat with the starter block it returns.")
 
     try:
-        while True:
-            time.sleep(interval)
-            current = _snapshot_project_files(project_root)
-            changed = _diff_snapshots(baseline, current)
-            baseline = current
-
-            if changed:
-                pending_changes.update(changed)
-                last_change_at = time.time()
-                _echo(f"Detected {len(changed)} changed files. Pending total: {len(pending_changes)}")
-                continue
-
-            if not pending_changes or last_change_at is None:
-                continue
-
-            if (time.time() - last_change_at) < quiet_seconds:
-                continue
-
-            if len(pending_changes) < min_changes:
-                continue
-
-            summary = _auto_summary(sorted(pending_changes), effective_project_name)
-            saved_path = write_session_summary(effective_project_name, summary, project_root=project_root)
-            active_path = get_active_context_file(project_root)
-            _echo(f"✅ Automatic checkpoint saved: {saved_path}")
-            _echo(f"✅ Active context refreshed: {active_path}")
-            pending_changes.clear()
-            last_change_at = None
-
-            if once:
-                return
+        run_watch_loop(
+            project_root,
+            effective_project_name,
+            quiet_seconds=quiet_seconds,
+            min_changes=min_changes,
+            min_diff_lines=min_diff_lines,
+            once=once,
+            dry_run=dry_run,
+            on_result=_handle_result,
+            emit=_emit,
+        )
     except KeyboardInterrupt:
         _echo("\nStopped watch mode.")
+    except RuntimeError as exc:
+        _echo(f"❌ {exc}", err=True)
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -851,6 +879,10 @@ def status():
     config = get_config()
     project_root = _project_root()
     vault = config.get("obsidian_vault")
+    groq_key = get_groq_api_key()
+    groq_configured = "yes" if groq_key else "no"
+    groq_source = "env/config" if groq_key else "missing"
+    groq_model = config.get("groq_model")
 
     if config.get("use_obsidian") and vault:
         memory_dir = Path(vault) / "Memory" / "Agent-Mem"
@@ -863,6 +895,8 @@ def status():
         _echo(f"Index note     : {index_path}")
         _echo(f"Active context : {active_path}")
         _echo(f"Session notes  : {count} stored")
+        _echo(f"Groq ready     : {groq_configured} ({groq_source})")
+        _echo(f"Groq model     : {groq_model}")
         return
 
     fallback_file = project_root / ".agent-memory" / "memory.md"
@@ -871,6 +905,8 @@ def status():
     _echo(f"Memory file    : {fallback_file}")
     _echo(f"Active context : {active_path}")
     _echo(f"Memory exists  : {'yes' if fallback_file.exists() else 'no'}")
+    _echo(f"Groq ready     : {groq_configured} ({groq_source})")
+    _echo(f"Groq model     : {groq_model}")
 
 
 if __name__ == "__main__":

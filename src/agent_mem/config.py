@@ -23,7 +23,12 @@ def _config_file() -> Path:
 
 CONFIG_DIR = _config_dir()
 CONFIG_FILE = _config_file()
-DEFAULT_CONFIG = {"use_obsidian": False, "obsidian_vault": None}
+DEFAULT_CONFIG = {
+    "use_obsidian": False,
+    "obsidian_vault": None,
+    "groq_api_key": None,
+    "groq_model": "llama-3.3-70b-versatile",
+}
 
 
 def _normalize_config(config: dict) -> dict:
@@ -40,6 +45,14 @@ def _normalize_config(config: dict) -> dict:
 
     if not normalized.get("obsidian_vault"):
         normalized["use_obsidian"] = False
+
+    api_key = normalized.get("groq_api_key")
+    if isinstance(api_key, str) and not api_key.strip():
+        normalized["groq_api_key"] = None
+
+    model = normalized.get("groq_model")
+    if isinstance(model, str) and not model.strip():
+        normalized["groq_model"] = DEFAULT_CONFIG["groq_model"]
 
     return normalized
 
@@ -72,9 +85,17 @@ def get_config() -> dict:
         loaded = tomllib.load(file)
     return _normalize_config(loaded)
 
+
 def save_config(config: dict):
     global CONFIG_DIR, CONFIG_FILE
     CONFIG_DIR = _config_dir()
     CONFIG_FILE = _config_file()
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
     CONFIG_FILE.write_text(_serialize_toml(_normalize_config(config)), encoding="utf-8")
+
+
+def get_groq_api_key() -> str | None:
+    env_key = os.environ.get("GROQ_API_KEY", "").strip()
+    if env_key:
+        return env_key
+    return get_config().get("groq_api_key")

@@ -15,6 +15,9 @@ classifiers = [
 ]
 dependencies = [
     "typer>=0.12",
+    "watchdog>=4.0",
+    "groq>=0.8",
+    "pyperclip>=1.9",
 ]
 
 [project.optional-dependencies]

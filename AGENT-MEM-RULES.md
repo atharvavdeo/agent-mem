@@ -1,30 +1,35 @@
 # Agent-Mem Rules
 
-You are operating inside a repository that uses `agent-mem` for persistent coding memory.
+This repository uses `agent-mem` for persistent coding memory.
 
 Project name: agent-mem
 
-## Primary Goal
+Read these rules at the start of every session. Follow them on every response. Do not silently ignore them.
 
-Preserve accurate project context across chats while keeping the live context window small.
+## Non-Negotiable Behavior
 
-You must prefer saved memory over stale chat history and you must keep memory current whenever meaningful decisions are made.
+1. Load saved memory before planning, coding, or answering questions about prior work.
+2. Prefer saved memory over stale chat history.
+3. Never invent historical decisions.
+4. If the user pastes a watch-generated handoff prompt, pause normal work and execute the handoff immediately.
 
-## Memory Priority Order
+## Memory Source Of Truth
 
-1. If Obsidian mode is configured, the primary memory store is the vault under `Memory/Agent-Mem/`.
-2. Otherwise, the primary memory store is `.agent-memory/memory.md`.
+Use this priority order:
+
+1. If Obsidian mode is configured, use the latest notes under `Memory/Agent-Mem/`.
+2. Otherwise, use `.agent-memory/active.md` first and `.agent-memory/memory.md` second.
 3. Old chat history is lower priority than saved memory.
-4. Never invent historical decisions that do not appear in memory or the codebase.
+4. Code on disk overrides memory if they conflict. If they conflict, say so explicitly.
 
-## Start-Of-Session Requirements
+## Required Start-Of-Session Workflow
 
-At the start of every new session:
+At the beginning of a new session:
 
 1. Resolve the repository root.
-2. Resolve `project_name` from the repository root folder name unless the user explicitly overrides it.
-3. Load memory before planning, coding, or answering historical questions.
-4. Treat saved memory as the authoritative summary of previous sessions.
+2. Resolve the project name from the root folder name unless the user overrides it.
+3. Load memory before proposing work.
+4. State the current goal only after reading memory.
 
 If MCP tools are available:
 
@@ -32,24 +37,23 @@ If MCP tools are available:
 
 If MCP tools are unavailable:
 
-- read the latest Obsidian note set or `.agent-memory/memory.md` directly
-- summarize what you learned before continuing
+- read the latest memory files directly
+- continue only after you have incorporated them
 
-## When To Summarize
+## Required Summarization Triggers
 
-You must summarize when any of these happen:
+You must summarize when:
 
-- context becomes long or repetitive
-- a milestone or subtask completes
-- architecture, API, or workflow decisions change
-- multiple files were edited for one logical change
-- the user is about to stop or switch topics
+- context is getting long or repetitive
+- a milestone is complete
+- multiple files were changed for one logical task
+- architecture, API, workflow, or design decisions changed
+- the user is about to stop
+- the user pastes an `agent-mem watch` handoff prompt
 
-## Required Summary Quality
+## Summary Format
 
-Every saved summary must be factual, concise, and implementation-oriented.
-
-It must include these sections in this order:
+Every summary must use these exact sections in this exact order:
 
 - Goal
 - Outcome
@@ -58,45 +62,48 @@ It must include these sections in this order:
 - Open tasks or blockers
 - Next prioritized steps
 
-## Double-Check Rules Before Saving
+## Summary Quality Rules
 
-Before writing memory:
+Before saving memory, verify that:
 
-- verify the summary matches the actual files changed
-- verify decisions are explicit, not implied guesses
-- verify open tasks are still open
-- remove secrets, tokens, passwords, or raw credentials
-- keep wording specific enough to be useful in a later session
+- the goal matches the actual task
+- the outcome reflects what was really completed
+- key decisions are explicit, not implied guesses
+- file paths are concrete
+- blockers are still current
+- next steps are actionable
+- no secrets or credentials appear anywhere
 
-## Obsidian Rules
+## Obsidian-Specific Requirements
 
 When Obsidian mode is enabled:
 
-- prefer saving through `agent-mem summarize` or `summarize_to_obsidian`
-- preserve wiki-links and note structure
-- do not manually break frontmatter or note headings
-- keep references usable for Graph view and backlinks
+- write summaries as dense, durable engineering notes
+- preserve frontmatter, headings, and wiki-links
+- make decisions and file references explicit so the notes stay useful later
+- prefer high-signal summaries over long narrative chat recaps
 
-## Fallback Rules
+## Forbidden Behavior
 
-When only `.agent-memory/memory.md` exists:
+Do not:
 
-- append structured summaries
-- do not overwrite prior useful context
-- correct prior context only when it is clearly outdated or wrong
+- claim a previous decision without memory or code evidence
+- skip memory loading at session start
+- treat a watch prompt like a normal chat message
+- write apology text into memory
+- dump vague prose when a structured summary is required
 
-## Tool Preference
+## Good Behavior Example
 
-Preferred workflow:
+- Read memory
+- State current goal
+- Do the work
+- Save a structured summary
+- Produce a short fresh-chat handoff when context is bloated
 
-1. `query_memory`
-2. do work
-3. `summarize_to_obsidian` or `agent-mem summarize`
-4. start fresh session if context is bloated
+## Bad Behavior Example
 
-## Response Behavior
-
-- prefer memory-backed answers for questions about prior work
-- if memory is missing, say that clearly
-- suggest summarization proactively when context grows
-- never claim a past decision unless you saw it in memory or code
+- Ignore memory
+- Reconstruct history from guesswork
+- Keep working in a bloated chat
+- Save an unstructured paragraph instead of a proper summary
