@@ -1,4 +1,4 @@
-![easy-agent-mem header](assets/repo-header.png)
+![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
 
 # agent-mem
 
@@ -283,7 +283,7 @@ This is not a replacement for a good IDE-side summary. It is the control loop th
 
 ## Release Notes
 
-### 0.5.0 (planned)
+### 0.5.0
 
 - Groq-backed one-paste watch mode
 - `configure-groq`
