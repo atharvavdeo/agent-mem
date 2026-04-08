@@ -531,36 +531,28 @@ def init():
     else:
         _echo("Obsidian mode    : Disabled (local fallback active)")
 
-    if _confirm(
-        "Create automatic instruction files for Cursor/Claude/Antigravity/OpenCode? (recommended)",
-        default=True,
-    ):
-        result = _create_instruction_files(project_root)
-        if result["created"]:
-            _echo("✅ Created instruction files:")
-            for relative_path in result["created"]:
-                _echo(f"  - {relative_path}")
-        if result["updated"]:
-            _echo("✅ Updated instruction files:")
-            for relative_path in result["updated"]:
-                _echo(f"  - {relative_path}")
-        _echo("Restart your IDE chat (or reload rules) to apply instruction changes.")
+    result = _create_instruction_files(project_root)
+    if result["created"]:
+        _echo("✅ Created instruction files:")
+        for relative_path in result["created"]:
+            _echo(f"  - {relative_path}")
+    if result["updated"]:
+        _echo("✅ Updated instruction files:")
+        for relative_path in result["updated"]:
+            _echo(f"  - {relative_path}")
+    _echo("Restart your IDE chat (or reload rules) to apply instruction changes.")
 
-    if _confirm(
-        "Create/update local MCP config files (.vscode/mcp.json and .cursor/mcp.json)? (optional)",
-        default=False,
-    ):
-        written_paths = _create_local_mcp_configs(project_root)
-        _echo("✅ MCP config updated:")
-        for config_path in written_paths:
-            _echo(f"  - {config_path}")
+    written_paths = _create_local_mcp_configs(project_root)
+    _echo("✅ MCP config updated:")
+    for config_path in written_paths:
+        _echo(f"  - {config_path}")
 
     _echo("\nSetup complete!")
     _echo("Recommended next steps:")
-    _echo("  1. Add AGENT-MEM-RULES.md to your IDE custom instructions")
-    _echo('  2. Save a session with: agent-mem summarize --summary "..."')
-    _echo('  3. Recall context with: agent-mem recall "current goal"')
-    _echo('Optional MCP mode: pip install "easy-agent-mem[mcp]" && agent-mem serve')
+    _echo("  1. Open your IDE in this folder and reload the window")
+    _echo("  2. Start a fresh chat")
+    _echo('  3. Or test locally with: agent-mem checkpoint --stdin')
+    _echo('You do not need to run `agent-mem serve` manually. Your IDE will launch it from the generated MCP config.')
 
 
 @app.command()
