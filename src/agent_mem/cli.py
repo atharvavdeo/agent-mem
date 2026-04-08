@@ -41,6 +41,35 @@ def _project_name_from_root(project_root: Path) -> str:
     return project_root.resolve().name
 
 
+def _quickstart_lines(project_root: Path | None = None) -> list[str]:
+    root = project_root or _project_root()
+    return [
+        "agent-mem quickstart",
+        f"Project root: {root}",
+        "",
+        "Most useful commands:",
+        "  agent-mem init",
+        "  agent-mem checkpoint --stdin",
+        '  agent-mem recall \"current goal\"',
+        "  agent-mem prepare-next",
+        "  agent-mem status",
+        "",
+        "Important:",
+        "  - Do not run `agent-mem serve` manually.",
+        "  - During `init`, choose the IDE you actually use.",
+        "  - Only that IDE's prompt/MCP files will be created.",
+    ]
+
+
+@app.callback(invoke_without_command=True)
+def main(ctx: typer.Context):
+    """CLI-first persistent memory for coding sessions."""
+    if ctx.invoked_subcommand is None:
+        for line in _quickstart_lines():
+            _echo(line)
+        raise typer.Exit()
+
+
 def _rules_body(project_name: str) -> str:
     return f"""# Agent-Mem Rules
 
@@ -269,23 +298,35 @@ If they are not, read and write the memory artifacts directly while preserving s
 """
 
 
+def _ide_setup_instructions(target: str) -> str:
+    instructions = {
+        "cursor": "Cursor setup: reload the workspace. agent-mem created `.cursor/rules/agent-mem.mdc` and `.cursor/mcp.json`. Start a fresh chat; Cursor should load both automatically.",
+        "claude": "Claude / VS Code setup: reload the workspace. agent-mem created `.claude/instructions.md` and `.vscode/mcp.json`. If your Claude extension does not auto-read `.claude/instructions.md`, paste `AGENT-MEM-RULES.md` into your custom instructions once.",
+        "antigravity": "Antigravity setup: reload the workspace. agent-mem created `.antigravity/rules.md`. If Antigravity supports MCP via VS Code settings in your setup, add the generated `.vscode/mcp.json` only if needed.",
+        "opencode": "OpenCode setup: reload the workspace. agent-mem created `.opencode/instructions.md`. If OpenCode needs MCP separately, use `agent-mem print-mcp-json` and add it in that product's MCP settings.",
+        "none": "No IDE files were created. You can still use `agent-mem checkpoint --stdin`, `agent-mem prepare-next`, and `agent-mem recall` directly from the terminal.",
+    }
+    return instructions[target]
+
+
 def _write_file(path: Path, content: str) -> bool:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return True
 
 
-def _create_instruction_files(project_root: Path) -> Dict[str, List[str]]:
+def _create_instruction_files(project_root: Path, target: str) -> Dict[str, List[str]]:
     project_name = _project_name_from_root(project_root)
 
-    files_to_write = {
-        project_root / "AGENT-MEM-RULES.md": _rules_body(project_name),
-        project_root / ".cursor" / "rules" / "agent-mem.mdc": _cursor_rule_content(project_name),
-        project_root / ".claude" / "instructions.md": _claude_instructions_content(project_name),
-        project_root / "CLAUDE.md": _claude_instructions_content(project_name),
-        project_root / ".antigravity" / "rules.md": _simple_wrapper_content("antigravity"),
-        project_root / ".opencode" / "instructions.md": _simple_wrapper_content("opencode"),
-    }
+    files_to_write = {project_root / "AGENT-MEM-RULES.md": _rules_body(project_name)}
+    if target == "cursor":
+        files_to_write[project_root / ".cursor" / "rules" / "agent-mem.mdc"] = _cursor_rule_content(project_name)
+    elif target == "claude":
+        files_to_write[project_root / ".claude" / "instructions.md"] = _claude_instructions_content(project_name)
+    elif target == "antigravity":
+        files_to_write[project_root / ".antigravity" / "rules.md"] = _simple_wrapper_content("antigravity")
+    elif target == "opencode":
+        files_to_write[project_root / ".opencode" / "instructions.md"] = _simple_wrapper_content("opencode")
 
     created: List[str] = []
     updated: List[str] = []
@@ -328,11 +369,12 @@ def _upsert_mcp_config(config_path: Path) -> str:
     return str(config_path)
 
 
-def _create_local_mcp_configs(project_root: Path) -> List[str]:
-    return [
-        _upsert_mcp_config(project_root / ".vscode" / "mcp.json"),
-        _upsert_mcp_config(project_root / ".cursor" / "mcp.json"),
-    ]
+def _create_local_mcp_configs(project_root: Path, target: str) -> List[str]:
+    if target == "cursor":
+        return [_upsert_mcp_config(project_root / ".cursor" / "mcp.json")]
+    if target == "claude":
+        return [_upsert_mcp_config(project_root / ".vscode" / "mcp.json")]
+    return []
 
 
 def _upsert_vscode_mcp_with_python(config_path: Path, python_executable: str) -> str:
@@ -399,6 +441,18 @@ def _build_mcp_json_with_python(python_executable: str) -> dict:
 
 def _project_root() -> Path:
     return Path.cwd().resolve()
+
+
+def _prompt_ide_target(default: str = "cursor") -> str:
+    valid = {"cursor", "claude", "antigravity", "opencode", "none"}
+    while True:
+        value = _prompt(
+            "Which IDE do you want to set up? [cursor/claude/antigravity/opencode/none]",
+            default=default,
+        ).strip().lower()
+        if value in valid:
+            return value
+        _echo("❌ Choose one of: cursor, claude, antigravity, opencode, none", err=True)
 
 
 def _read_summary_input(summary: str, summary_file: str, stdin: bool) -> str:
@@ -513,6 +567,8 @@ def init():
     else:
         _echo("✅ Using simple local memory.md fallback in project folder")
 
+    ide_target = _prompt_ide_target()
+
     save_config(config)
     _echo(f"✅ Config saved to {CONFIG_FILE}")
 
@@ -531,7 +587,7 @@ def init():
     else:
         _echo("Obsidian mode    : Disabled (local fallback active)")
 
-    result = _create_instruction_files(project_root)
+    result = _create_instruction_files(project_root, ide_target)
     if result["created"]:
         _echo("✅ Created instruction files:")
         for relative_path in result["created"]:
@@ -542,26 +598,30 @@ def init():
             _echo(f"  - {relative_path}")
     _echo("Restart your IDE chat (or reload rules) to apply instruction changes.")
 
-    written_paths = _create_local_mcp_configs(project_root)
-    _echo("✅ MCP config updated:")
-    for config_path in written_paths:
-        _echo(f"  - {config_path}")
+    written_paths = _create_local_mcp_configs(project_root, ide_target)
+    if written_paths:
+        _echo("✅ MCP config updated:")
+        for config_path in written_paths:
+            _echo(f"  - {config_path}")
 
     _echo("\nSetup complete!")
-    _echo("Recommended next steps:")
-    _echo("  1. Open your IDE in this folder and reload the window")
-    _echo("  2. Start a fresh chat")
-    _echo('  3. Or test locally with: agent-mem checkpoint --stdin')
-    _echo('You do not need to run `agent-mem serve` manually. Your IDE will launch it from the generated MCP config.')
+    _echo(_ide_setup_instructions(ide_target))
+    _echo("Terminal-only test:")
+    _echo("  1. agent-mem checkpoint --stdin")
+    _echo("  2. agent-mem prepare-next")
+    _echo('  3. agent-mem recall "current goal"')
+    if written_paths:
+        _echo("You do not need to run `agent-mem serve` manually. Your IDE will launch it from the generated MCP config.")
 
 
 @app.command()
 def setup():
     """Set up instruction files + MCP configs for the current project."""
     project_root = _project_root()
+    ide_target = _prompt_ide_target()
 
-    result = _create_instruction_files(project_root)
-    written_paths = _create_local_mcp_configs(project_root)
+    result = _create_instruction_files(project_root, ide_target)
+    written_paths = _create_local_mcp_configs(project_root, ide_target)
 
     _echo(f"Project root: {project_root}")
     if result["created"]:
@@ -573,9 +633,11 @@ def setup():
         for relative_path in result["updated"]:
             _echo(f"  - {relative_path}")
 
-    _echo("✅ MCP config updated:")
-    for config_path in written_paths:
-        _echo(f"  - {config_path}")
+    if written_paths:
+        _echo("✅ MCP config updated:")
+        for config_path in written_paths:
+            _echo(f"  - {config_path}")
+    _echo(_ide_setup_instructions(ide_target))
 
 
 @app.command("setup-vscode")
