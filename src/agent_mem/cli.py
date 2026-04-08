@@ -9,7 +9,16 @@ import click
 import typer
 
 from .config import CONFIG_FILE, get_config, save_config
-from .memory import get_fallback_memory_file, get_memory_dir, initialize_storage, recall_memory, write_session_summary
+from .memory import (
+    get_active_context_file,
+    get_fallback_memory_file,
+    get_memory_dir,
+    initialize_storage,
+    prepare_next_prompt,
+    recall_memory,
+    write_active_context,
+    write_session_summary,
+)
 
 app = typer.Typer()
 
@@ -627,9 +636,46 @@ def summarize(
     summary_text = _read_summary_input(summary, summary_file, stdin)
 
     saved_path = write_session_summary(effective_project_name, summary_text, project_root=project_root)
+    active_path = get_active_context_file(project_root)
     mode = "Obsidian" if get_config().get("use_obsidian") else "local fallback"
 
     _echo(f"✅ Summary saved to {mode}: {saved_path}")
+    _echo(f"✅ Active context refreshed: {active_path}")
+
+
+@app.command()
+def checkpoint(
+    summary: str = typer.Option("", "--summary", help="Inline checkpoint summary text."),
+    summary_file: str = typer.Option("", "--summary-file", help="Path to a markdown/text file containing the checkpoint summary."),
+    stdin: bool = typer.Option(False, "--stdin", help="Read checkpoint summary text from stdin."),
+    project_name: str = typer.Option("", "--project-name", help="Override the inferred project name."),
+    save_session: bool = typer.Option(
+        False,
+        "--save-session/--no-save-session",
+        help="Also persist the checkpoint into long-term session memory.",
+    ),
+):
+    """Write the compact live handoff file used for the next fresh chat."""
+    project_root = _project_root()
+    effective_project_name = project_name.strip() or _project_name_from_root(project_root)
+    summary_text = _read_summary_input(summary, summary_file, stdin)
+
+    active_path = write_active_context(effective_project_name, summary_text, project_root=project_root)
+    _echo(f"✅ Active context saved: {active_path}")
+
+    if save_session:
+        session_path = write_session_summary(effective_project_name, summary_text, project_root=project_root)
+        _echo(f"✅ Session memory also saved: {session_path}")
+
+
+@app.command("prepare-next")
+def prepare_next(
+    project_name: str = typer.Option("", "--project-name", help="Override the inferred project name."),
+):
+    """Print the compact starter block for a fresh follow-up chat."""
+    project_root = _project_root()
+    effective_project_name = project_name.strip() or _project_name_from_root(project_root)
+    _echo(prepare_next_prompt(effective_project_name, project_root=project_root))
 
 
 @app.command()
@@ -692,7 +738,9 @@ def watch(
 
             summary = _auto_summary(sorted(pending_changes), effective_project_name)
             saved_path = write_session_summary(effective_project_name, summary, project_root=project_root)
+            active_path = get_active_context_file(project_root)
             _echo(f"✅ Automatic checkpoint saved: {saved_path}")
+            _echo(f"✅ Active context refreshed: {active_path}")
             pending_changes.clear()
             last_change_at = None
 
@@ -735,16 +783,20 @@ def status():
         memory_dir = Path(vault) / "Memory" / "Agent-Mem"
         count = len(list(memory_dir.glob("*-session.md"))) if memory_dir.exists() else 0
         index_path = memory_dir / "Index.md"
+        active_path = get_active_context_file(project_root)
         _echo("Storage mode   : Obsidian")
         _echo(f"Obsidian vault : {vault}")
         _echo(f"Memory folder  : {memory_dir}")
         _echo(f"Index note     : {index_path}")
+        _echo(f"Active context : {active_path}")
         _echo(f"Session notes  : {count} stored")
         return
 
     fallback_file = project_root / ".agent-memory" / "memory.md"
+    active_path = get_active_context_file(project_root)
     _echo("Storage mode   : Local fallback")
     _echo(f"Memory file    : {fallback_file}")
+    _echo(f"Active context : {active_path}")
     _echo(f"Memory exists  : {'yes' if fallback_file.exists() else 'no'}")
 
 
