@@ -2,9 +2,46 @@
 
 CLI-first persistent memory for AI coding sessions.
 
-`agent-mem` saves structured session summaries either directly into an Obsidian vault as normal Markdown notes or into a local fallback store inside the project. It is designed to reduce context bloat, preserve decisions, and make recall usable even when IDE or MCP automation is unreliable.
+`agent-mem` keeps coding context outside the live chat window. It saves structured summaries directly into an Obsidian vault when one is configured, or into a local fallback store inside the project when Obsidian is not available.
 
-## Install
+That gives you a simple workflow:
+
+- save progress as memory
+- reopen memory later with a focused query
+- keep chat context smaller
+- stop repeating the same project decisions across sessions
+
+## Why This Exists
+
+Long coding chats drift. Important decisions get buried, context windows bloat, and new sessions start cold.
+
+`agent-mem` fixes that with a local, inspectable memory layer:
+
+- **Obsidian-first** when you want graph view, backlinks, and durable notes
+- **project-local fallback** when you want zero extra setup
+- **CLI-first** so the product works even without MCP or IDE-specific integrations
+
+## Core Features
+
+- direct Obsidian vault connection during `init`
+- Obsidian-friendly session notes with:
+  - YAML frontmatter
+  - wiki-links
+  - `Index.md` updates
+- local fallback in `.agent-memory/memory.md`
+- CLI commands to:
+  - initialize storage
+  - save structured summaries
+  - recall relevant memory
+  - watch file activity and create automatic checkpoints
+- optional MCP support for IDEs that expose tools reliably
+- generated instruction files tailored for:
+  - Cursor
+  - Claude / VS Code
+  - Antigravity
+  - OpenCode
+
+## Installation
 
 ```bash
 pip install easy-agent-mem
@@ -16,50 +53,66 @@ Optional MCP support:
 pip install "easy-agent-mem[mcp]"
 ```
 
-## What It Does
-
-- connects to an Obsidian vault during setup
-- writes Obsidian-friendly `.md` notes directly into the vault
-- creates graph-friendly wiki-links and YAML frontmatter
-- keeps a local `.agent-memory/memory.md` fallback when Obsidian is not configured
-- provides CLI commands to save and recall context without depending on IDE prompt rules
-
 ## Quick Start
+
+### 1. Initialize the project
 
 ```bash
 agent-mem init
 ```
 
-During `init`:
+During setup you can:
 
-- if you provide an Obsidian vault path, notes are written to:
-  - `<vault>/Memory/Agent-Mem/`
-- if you skip the vault path, memory is stored locally in:
-  - `.agent-memory/memory.md`
+- connect an Obsidian vault
+- or skip it and use local fallback storage
 
-After setup:
+### 2. Save a session summary
 
 ```bash
 agent-mem summarize --summary "## Goal
 
 Ship the release.
 
+## Outcome
+
+Prepared the package for publication.
+
 ## Key decisions
 - Use Obsidian as primary storage.
 
-## Open tasks
-- Publish 0.4.0"
+## Files changed
+- src/agent_mem/memory.py
+
+## Open tasks or blockers
+- Publish 0.4.2
+
+## Next prioritized steps
+- Verify the built wheel."
 ```
 
-Then recall it later:
+### 3. Recall memory later
 
 ```bash
 agent-mem recall "release status"
 ```
 
-## Obsidian Mode
+### 4. Run automatic checkpointing
 
-When connected to Obsidian, `agent-mem` writes real Markdown notes directly into your vault. You do not need a plugin. Obsidian sees the notes automatically because they live inside the vault folder.
+```bash
+agent-mem watch
+```
+
+This monitors file activity in the current repo and writes an automated checkpoint once activity settles.
+
+## Storage Modes
+
+### Obsidian Mode
+
+If you provide a vault path during `agent-mem init`, notes are written directly into:
+
+```text
+<vault>/Memory/Agent-Mem/
+```
 
 Current layout:
 
@@ -71,12 +124,24 @@ Current layout:
       project-name-YYYY-MM-DD_HH-MM-session.md
 ```
 
-Session notes include:
+Session notes are normal Markdown files, so Obsidian picks them up automatically.
+
+They include:
 
 - YAML frontmatter
 - wiki-links like `[[project-name]]`
-- file links like `[[File - src/agent_mem/memory.py]]`
-- task links like `[[Task - publish 0.4.0]]`
+- file links like `[[File - src/agent_mem/cli.py]]`
+- task links like `[[Task - ship release]]`
+
+### Local Fallback Mode
+
+If you skip Obsidian, memory is stored in:
+
+```text
+.agent-memory/memory.md
+```
+
+This keeps the product usable even in plain local repos without extra tools.
 
 ## Commands
 
@@ -86,43 +151,79 @@ agent-mem summarize --summary "..."
 agent-mem summarize --summary-file session.md
 cat summary.md | agent-mem summarize --stdin
 agent-mem recall "auth decisions"
+agent-mem watch
 agent-mem status
+agent-mem setup
 agent-mem setup-vscode
 agent-mem print-mcp-json
 agent-mem serve
 ```
 
-## IDE Usage
+## IDE Integration
 
-The core product works without MCP.
+`agent-mem` works best when the IDE is instructed to treat saved memory as the source of truth.
 
-Recommended flow:
+The repo can generate instruction files automatically for:
+
+- `AGENT-MEM-RULES.md`
+- `.cursor/rules/agent-mem.mdc`
+- `.claude/instructions.md`
+- `CLAUDE.md`
+- `.antigravity/rules.md`
+- `.opencode/instructions.md`
+
+Recommended IDE workflow:
 
 1. run `agent-mem init`
-2. add `AGENT-MEM-RULES.md` to your IDE custom instructions
-3. use `agent-mem summarize` to save milestones
-4. use `agent-mem recall` to reload context
+2. add the generated instructions to your IDE
+3. use `agent-mem summarize` after milestones
+4. use `agent-mem recall` at the start of new sessions
 
-If you want MCP integration, install the optional extra and use:
+Optional MCP workflow:
 
 ```bash
 agent-mem setup-vscode
+agent-mem serve
 ```
 
-## Status
+## Automated Checkpoints
 
-`agent-mem` is intentionally simple:
+`agent-mem watch` is a lightweight file-activity watcher.
 
-- Obsidian is just a Markdown vault
-- the CLI writes notes directly
-- fallback mode stays fully usable without Obsidian
+It:
 
-The design goal is reliable context preservation first, deeper automation second.
+- polls the repo for file changes
+- waits for a quiet period
+- writes an automatic checkpoint summary after enough changes accumulate
 
-## Links
+Useful options:
 
-- PyPI: [https://pypi.org/project/easy-agent-mem/](https://pypi.org/project/easy-agent-mem/)
-- Source: [https://github.com/atharvavdeo/agent-mem](https://github.com/atharvavdeo/agent-mem)
+```bash
+agent-mem watch --interval 2 --quiet-seconds 20 --min-changes 3
+agent-mem watch --once
+```
+
+This is not a replacement for a high-quality manual summary. It is a safety net to avoid losing context between work bursts.
+
+## Release Notes
+
+### 0.4.1
+
+- added tailored IDE-specific instruction files for Cursor, Claude, Antigravity, and OpenCode
+- strengthened generated rules with explicit summarization checks and anti-hallucination guidance
+- aligned the instruction-file generator with the checked-in templates
+
+### 0.4.0
+
+- introduced Obsidian-first storage with direct vault note writing
+- added YAML frontmatter, wiki-links, and `Index.md`
+- added CLI-first `summarize` and `recall`
+- kept local fallback mode intact
+
+## Project Links
+
+- PyPI: [easy-agent-mem](https://pypi.org/project/easy-agent-mem/)
+- Source: [github.com/atharvavdeo/agent-mem](https://github.com/atharvavdeo/agent-mem)
 
 ## License
 

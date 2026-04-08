@@ -2,6 +2,7 @@ from pathlib import Path
 import json
 import shutil
 import sys
+import time
 from typing import Dict, List
 
 import typer
@@ -394,6 +395,83 @@ def _read_summary_input(summary: str, summary_file: str, stdin: bool) -> str:
     raise typer.Exit(1)
 
 
+def _watch_ignore(path: Path) -> bool:
+    ignored_parts = {
+        ".git",
+        ".agent-memory",
+        ".cursor",
+        ".claude",
+        ".antigravity",
+        ".opencode",
+        ".vscode",
+        "dist",
+        "build",
+        "__pycache__",
+        ".pytest_cache",
+        ".mypy_cache",
+    }
+    return any(part in ignored_parts for part in path.parts)
+
+
+def _snapshot_project_files(project_root: Path) -> Dict[str, float]:
+    snapshot: Dict[str, float] = {}
+    for path in project_root.rglob("*"):
+        if not path.is_file():
+            continue
+        if _watch_ignore(path.relative_to(project_root)):
+            continue
+        snapshot[str(path.relative_to(project_root))] = path.stat().st_mtime
+    return snapshot
+
+
+def _diff_snapshots(previous: Dict[str, float], current: Dict[str, float]) -> List[str]:
+    changed: set[str] = set()
+    previous_keys = set(previous)
+    current_keys = set(current)
+
+    for key in previous_keys ^ current_keys:
+        changed.add(key)
+
+    for key in previous_keys & current_keys:
+        if previous[key] != current[key]:
+            changed.add(key)
+
+    return sorted(changed)
+
+
+def _auto_summary(changed_files: List[str], project_name: str) -> str:
+    bullet_files = "\n".join(f"- {path}" for path in changed_files[:25]) or "- No files detected"
+    extra_note = ""
+    if len(changed_files) > 25:
+        extra_note = f"\nAdditional changed files not shown: {len(changed_files) - 25}"
+
+    return f"""## Goal
+
+Automatic checkpoint created by `agent-mem watch`.
+
+## Outcome
+
+Saved an automated memory checkpoint after file activity settled.
+
+## Key decisions
+
+- Automatic watch-based checkpoint captured current work-in-progress state for {project_name}.
+
+## Files changed
+
+{bullet_files}{extra_note}
+
+## Open tasks or blockers
+
+- Review the changed files and replace this automated checkpoint with a richer manual summary if architectural decisions were made.
+
+## Next prioritized steps
+
+- Continue the current task.
+- Run `agent-mem summarize` manually after the next meaningful milestone for a higher-quality summary.
+"""
+
+
 @app.command()
 def init():
     """One-time setup - Obsidian is optional, local memory.md fallback is supported."""
@@ -552,6 +630,64 @@ def recall(
     project_root = _project_root()
     effective_project_name = project_name.strip() or _project_name_from_root(project_root)
     typer.echo(recall_memory(effective_project_name, query, count=count, project_root=project_root))
+
+
+@app.command()
+def watch(
+    interval: float = typer.Option(2.0, "--interval", min=0.5, help="Polling interval in seconds."),
+    quiet_seconds: int = typer.Option(20, "--quiet-seconds", min=1, help="Required quiet time before a checkpoint is saved."),
+    min_changes: int = typer.Option(3, "--min-changes", min=1, help="Minimum number of changed files before saving an automatic checkpoint."),
+    once: bool = typer.Option(False, "--once", help="Exit after the first automatic checkpoint is saved."),
+    project_name: str = typer.Option("", "--project-name", help="Override the inferred project name."),
+):
+    """Watch the repo for file activity and save automatic checkpoint summaries."""
+    project_root = _project_root()
+    effective_project_name = project_name.strip() or _project_name_from_root(project_root)
+
+    initialize_storage(project_root)
+    baseline = _snapshot_project_files(project_root)
+    pending_changes: set[str] = set()
+    last_change_at: float | None = None
+
+    typer.echo(f"Watching {project_root}")
+    typer.echo(f"Project name     : {effective_project_name}")
+    typer.echo(f"Polling interval : {interval}s")
+    typer.echo(f"Quiet threshold  : {quiet_seconds}s")
+    typer.echo(f"Min changes      : {min_changes}")
+    typer.echo("Press Ctrl+C to stop.")
+
+    try:
+        while True:
+            time.sleep(interval)
+            current = _snapshot_project_files(project_root)
+            changed = _diff_snapshots(baseline, current)
+            baseline = current
+
+            if changed:
+                pending_changes.update(changed)
+                last_change_at = time.time()
+                typer.echo(f"Detected {len(changed)} changed files. Pending total: {len(pending_changes)}")
+                continue
+
+            if not pending_changes or last_change_at is None:
+                continue
+
+            if (time.time() - last_change_at) < quiet_seconds:
+                continue
+
+            if len(pending_changes) < min_changes:
+                continue
+
+            summary = _auto_summary(sorted(pending_changes), effective_project_name)
+            saved_path = write_session_summary(effective_project_name, summary, project_root=project_root)
+            typer.echo(f"✅ Automatic checkpoint saved: {saved_path}")
+            pending_changes.clear()
+            last_change_at = None
+
+            if once:
+                return
+    except KeyboardInterrupt:
+        typer.echo("\nStopped watch mode.")
 
 
 @app.command()
