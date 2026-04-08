@@ -751,8 +751,27 @@ def watch(
 
 
 @app.command()
-def serve():
+def serve(
+    force_stdio: bool = typer.Option(
+        False,
+        "--force-stdio",
+        help="Run even in an interactive terminal. Intended only for debugging MCP startup.",
+    ),
+):
     """Start the optional MCP server (stdio transport)."""
+    if not force_stdio and (sys.stdin.isatty() or sys.stdout.isatty()):
+        _echo("`agent-mem serve` is an MCP stdio endpoint for IDEs, not a normal terminal command.", err=True)
+        _echo("Do not run it manually from a shell prompt.", err=True)
+        _echo("", err=True)
+        _echo("Use one of these instead:", err=True)
+        _echo("  - agent-mem status", err=True)
+        _echo("  - agent-mem checkpoint --stdin", err=True)
+        _echo("  - agent-mem prepare-next", err=True)
+        _echo("", err=True)
+        _echo("If you are configuring VS Code or Cursor, keep the generated MCP config and let the IDE launch `serve` automatically.", err=True)
+        _echo("If you really need to debug MCP startup in a terminal, run: agent-mem serve --force-stdio", err=True)
+        raise typer.Exit(1)
+
     try:
         from .mcp_server import mcp
     except ImportError:
