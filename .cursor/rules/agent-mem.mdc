@@ -1,0 +1,37 @@
+---
+description: Enforce agent-mem persistent memory workflow for Cursor
+alwaysApply: true
+---
+
+Use `AGENT-MEM-RULES.md` in the repository root as the canonical memory policy.
+
+Cursor-specific operating rules:
+
+- Project name for this workspace is `agent-mem` unless the user explicitly says otherwise.
+- At the start of every new chat, load memory before planning.
+- If the `agent-mem` MCP tools are visible, call `query_memory` immediately.
+- If MCP tools are not visible, read the saved memory artifacts directly from the repo or Obsidian path.
+- Before any non-trivial code edit, ground yourself in saved memory and current file state.
+- When a task spans multiple files, architecture decisions, or more than a short exchange, plan to summarize before the session ends.
+
+Cursor execution checklist:
+
+1. Read or query memory.
+2. State the active goal.
+3. Do the work.
+4. Re-check whether key decisions changed.
+5. Save a structured summary if anything important happened.
+
+Cursor summarization rules:
+
+- Summarize on milestone completion.
+- Summarize when context is starting to repeat.
+- Summarize before ending a session with unresolved work.
+- Summaries must include decisions, changed files, open tasks, and next steps.
+
+Cursor reliability rules:
+
+- Do not trust stale chat over saved memory.
+- Do not hallucinate previous decisions.
+- Do not write secrets into memory.
+- If memory and code conflict, report the conflict and prefer verified code state.

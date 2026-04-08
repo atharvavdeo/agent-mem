@@ -19,106 +19,232 @@ def _project_name_from_root(project_root: Path) -> str:
 def _rules_body(project_name: str) -> str:
     return f"""# Agent-Mem Rules
 
-You have persistent project memory via agent-mem.
+You are operating inside a repository that uses `agent-mem` for persistent coding memory.
 
-## Objective
+Project name: {project_name}
 
-- Keep durable project context across chats.
-- Prefer stored memory over long chat history.
+## Primary Goal
 
-## Memory Source Of Truth
+Preserve accurate project context across chats while keeping the live context window small.
 
-- Primary (default): .agent-memory/memory.md
-- Optional: [vault_path]/Memory/Agent-Mem/ when Obsidian mode is configured
+You must prefer saved memory over stale chat history and you must keep memory current whenever meaningful decisions are made.
 
-## Mandatory Start-Of-Session Workflow
+## Memory Priority Order
 
-1. Resolve project root and project name (root folder name).
-2. Load latest memory before planning or coding.
-3. If memory exists, treat it as authoritative project context.
-4. If memory does not exist, continue normally and create or update it after meaningful progress.
+1. If Obsidian mode is configured, the primary memory store is the vault under `Memory/Agent-Mem/`.
+2. Otherwise, the primary memory store is `.agent-memory/memory.md`.
+3. Old chat history is lower priority than saved memory.
+4. Never invent historical decisions that do not appear in memory or the codebase.
 
-## Mandatory Summarization Triggers
+## Start-Of-Session Requirements
 
-- Context pressure (roughly 15-20 turns)
-- Major milestone completed
-- Before ending session when important decisions were made
+At the start of every new session:
 
-## Required Summary Structure
+1. Resolve the repository root.
+2. Resolve `project_name` from the repository root folder name unless the user explicitly overrides it.
+3. Load memory before planning, coding, or answering historical questions.
+4. Treat saved memory as the authoritative summary of previous sessions.
 
-Use concise Markdown with these sections in order:
+If MCP tools are available:
+
+- call `query_memory(project_name, current_goal)`
+
+If MCP tools are unavailable:
+
+- read the latest Obsidian note set or `.agent-memory/memory.md` directly
+- summarize what you learned before continuing
+
+## When To Summarize
+
+You must summarize when any of these happen:
+
+- context becomes long or repetitive
+- a milestone or subtask completes
+- architecture, API, or workflow decisions change
+- multiple files were edited for one logical change
+- the user is about to stop or switch topics
+
+## Required Summary Quality
+
+Every saved summary must be factual, concise, and implementation-oriented.
+
+It must include these sections in this order:
 
 - Goal
 - Outcome
-- Key decisions (with rationale)
-- Files changed (path + reason)
+- Key decisions
+- Files changed
 - Open tasks or blockers
 - Next prioritized steps
 
-## Memory Write Rules
+## Double-Check Rules Before Saving
 
-- Append new information; do not delete prior history unless it is clearly obsolete and corrected.
-- Be factual and specific; never invent decisions or changes.
-- Never write secrets (tokens, API keys, passwords, private credentials).
+Before writing memory:
 
-## MCP Compatibility (Optional)
+- verify the summary matches the actual files changed
+- verify decisions are explicit, not implied guesses
+- verify open tasks are still open
+- remove secrets, tokens, passwords, or raw credentials
+- keep wording specific enough to be useful in a later session
 
-- If MCP tools are available: use query_memory, summarize_to_obsidian, list_recent_sessions.
-- If MCP tools are unavailable: read and update .agent-memory/memory.md directly with the same structure.
+## Obsidian Rules
 
-## Project Name Rule
+When Obsidian mode is enabled:
 
-- Always use the repository root folder name as project_name.
+- prefer saving through `agent-mem summarize` or `summarize_to_obsidian`
+- preserve wiki-links and note structure
+- do not manually break frontmatter or note headings
+- keep references usable for Graph view and backlinks
 
-Project name for this workspace: {project_name}
+## Fallback Rules
+
+When only `.agent-memory/memory.md` exists:
+
+- append structured summaries
+- do not overwrite prior useful context
+- correct prior context only when it is clearly outdated or wrong
+
+## Tool Preference
+
+Preferred workflow:
+
+1. `query_memory`
+2. do work
+3. `summarize_to_obsidian` or `agent-mem summarize`
+4. start fresh session if context is bloated
+
+## Response Behavior
+
+- prefer memory-backed answers for questions about prior work
+- if memory is missing, say that clearly
+- suggest summarization proactively when context grows
+- never claim a past decision unless you saw it in memory or code
 """
 
 
 def _cursor_rule_content(project_name: str) -> str:
     return f"""---
-description: Enforce agent-mem persistent memory workflow
+description: Enforce agent-mem persistent memory workflow for Cursor
 alwaysApply: true
 ---
 
-Follow AGENT-MEM-RULES.md in the repository root.
+Use `AGENT-MEM-RULES.md` in the repository root as the canonical memory policy.
 
-Critical reminders:
+Cursor-specific operating rules:
 
-- Resolve project_name as: {project_name}
-- Read .agent-memory/memory.md before planning or coding.
-- On long sessions or milestones, write a structured summary with decisions and changed files.
-- Use MCP tools when available; otherwise update memory.md directly.
+- Project name for this workspace is `{project_name}` unless the user explicitly says otherwise.
+- At the start of every new chat, load memory before planning.
+- If the `agent-mem` MCP tools are visible, call `query_memory` immediately.
+- If MCP tools are not visible, read the saved memory artifacts directly from the repo or Obsidian path.
+- Before any non-trivial code edit, ground yourself in saved memory and current file state.
+- When a task spans multiple files, architecture decisions, or more than a short exchange, plan to summarize before the session ends.
+
+Cursor execution checklist:
+
+1. Read or query memory.
+2. State the active goal.
+3. Do the work.
+4. Re-check whether key decisions changed.
+5. Save a structured summary if anything important happened.
+
+Cursor summarization rules:
+
+- Summarize on milestone completion.
+- Summarize when context is starting to repeat.
+- Summarize before ending a session with unresolved work.
+- Summaries must include decisions, changed files, open tasks, and next steps.
+
+Cursor reliability rules:
+
+- Do not trust stale chat over saved memory.
+- Do not hallucinate previous decisions.
+- Do not write secrets into memory.
+- If memory and code conflict, report the conflict and prefer verified code state.
 """
 
 
 def _claude_instructions_content(project_name: str) -> str:
     return f"""# Agent Memory Instructions
 
-Use AGENT-MEM-RULES.md as the source of truth.
+Use `AGENT-MEM-RULES.md` as the canonical source of truth.
 
 Project name: {project_name}
 
-Mandatory behavior:
+Mandatory behavior at session start:
 
-- Resolve project name from repository root and keep it consistent.
-- Read memory before planning or coding.
-- Summarize at milestones/context pressure and persist outcomes.
-- Prefer memory content over old chat history.
-- Never hallucinate historical decisions.
-- Never store secrets in memory files.
+- Resolve the repository root.
+- Resolve the project name from the repository root and keep it consistent.
+- Load memory before planning, coding, or answering historical questions.
+- Prefer saved memory over old chat history.
+
+If MCP tools are available:
+
+- call `query_memory` first
+- call `summarize_to_obsidian` when needed
+
+If MCP tools are unavailable:
+
+- read the latest memory artifact directly
+- use `agent-mem summarize` conventions when preparing a summary
+
+Mandatory summarization triggers:
+
+- long or repetitive context
+- completed milestone
+- important design or implementation decision
+- multiple-file change
+- session handoff or stop point
+
+Required summary contents:
+
+- Goal
+- Outcome
+- Key decisions
+- Files changed
+- Open tasks or blockers
+- Next prioritized steps
+
+Safety rules:
+
+- never hallucinate historical decisions
+- never write secrets into memory
+- if memory conflicts with the codebase, say so explicitly
+- prefer verified state over guessed state
 """
 
 
 def _simple_wrapper_content(path_hint: str) -> str:
-    return (
-        "Use AGENT-MEM-RULES.md in the repository root as the authoritative instruction set for memory workflow.\n"
-        f"Wrapper target: {path_hint}\n"
-    )
+    title = path_hint.capitalize()
+    return f"""# Agent-Mem Instructions For {title}
+
+Use `AGENT-MEM-RULES.md` in the repository root as the canonical memory policy.
+
+Platform target: {path_hint}
+
+Behavior requirements:
+
+- Load memory at the start of each session.
+- Prefer Obsidian-backed notes or `.agent-memory/memory.md` over long chat history.
+- Summarize after important changes, milestones, or context growth.
+- Keep summaries structured and implementation-oriented.
+- Never fabricate historical context.
+- Never store secrets in memory artifacts.
+
+Required summary sections:
+
+- Goal
+- Outcome
+- Key decisions
+- Files changed
+- Open tasks or blockers
+- Next prioritized steps
+
+If direct MCP tools are available, use them.
+If they are not, read and write the memory artifacts directly while preserving structure.
+"""
 
 
 def _write_file(path: Path, content: str) -> bool:
-    if path.exists():
-        return False
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return True
@@ -137,14 +263,16 @@ def _create_instruction_files(project_root: Path) -> Dict[str, List[str]]:
     }
 
     created: List[str] = []
-    skipped: List[str] = []
+    updated: List[str] = []
     for path, content in files_to_write.items():
+        existed = path.exists()
         if _write_file(path, content):
-            created.append(str(path.relative_to(project_root)))
-        else:
-            skipped.append(str(path.relative_to(project_root)))
+            if existed:
+                updated.append(str(path.relative_to(project_root)))
+            else:
+                created.append(str(path.relative_to(project_root)))
 
-    return {"created": created, "skipped": skipped}
+    return {"created": created, "updated": updated}
 
 
 def _upsert_mcp_config(config_path: Path) -> str:
@@ -313,9 +441,9 @@ def init():
             typer.echo("✅ Created instruction files:")
             for relative_path in result["created"]:
                 typer.echo(f"  - {relative_path}")
-        if result["skipped"]:
-            typer.echo("ℹ️ Existing files kept unchanged:")
-            for relative_path in result["skipped"]:
+        if result["updated"]:
+            typer.echo("✅ Updated instruction files:")
+            for relative_path in result["updated"]:
                 typer.echo(f"  - {relative_path}")
         typer.echo("Restart your IDE chat (or reload rules) to apply instruction changes.")
 
@@ -349,9 +477,9 @@ def setup():
         typer.echo("✅ Created instruction files:")
         for relative_path in result["created"]:
             typer.echo(f"  - {relative_path}")
-    if result["skipped"]:
-        typer.echo("ℹ️ Existing files kept unchanged:")
-        for relative_path in result["skipped"]:
+    if result["updated"]:
+        typer.echo("✅ Updated instruction files:")
+        for relative_path in result["updated"]:
             typer.echo(f"  - {relative_path}")
 
     typer.echo("✅ MCP config updated:")
