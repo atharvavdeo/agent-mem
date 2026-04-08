@@ -5,12 +5,27 @@ import sys
 import time
 from typing import Dict, List
 
+import click
 import typer
 
 from .config import CONFIG_FILE, get_config, save_config
 from .memory import get_fallback_memory_file, get_memory_dir, initialize_storage, recall_memory, write_session_summary
 
 app = typer.Typer()
+
+
+def _echo(message: str = "", err: bool = False):
+    click.secho(message, fg="bright_yellow", err=err, color=True)
+
+
+def _prompt(text: str, default: str = "") -> str:
+    styled = click.style(text, fg="bright_yellow")
+    return click.prompt(styled, default=default, show_default=False)
+
+
+def _confirm(text: str, default: bool = False) -> bool:
+    styled = click.style(text, fg="bright_yellow")
+    return click.confirm(styled, default=default, show_default=True)
 
 
 def _project_name_from_root(project_root: Path) -> str:
@@ -355,7 +370,7 @@ def _resolve_python_for_mcp(project_root: Path, python_option: str) -> str:
     if python_option.strip():
         explicit_python = Path(python_option.strip()).expanduser().resolve()
         if not explicit_python.exists():
-            typer.echo(f"❌ Python path not found: {explicit_python}", err=True)
+            _echo(f"❌ Python path not found: {explicit_python}", err=True)
             raise typer.Exit(1)
         return str(explicit_python)
 
@@ -383,7 +398,7 @@ def _read_summary_input(summary: str, summary_file: str, stdin: bool) -> str:
     if summary_file.strip():
         summary_path = Path(summary_file.strip()).expanduser().resolve()
         if not summary_path.exists():
-            typer.echo(f"❌ Summary file not found: {summary_path}", err=True)
+            _echo(f"❌ Summary file not found: {summary_path}", err=True)
             raise typer.Exit(1)
         return summary_path.read_text(encoding="utf-8").strip()
     if stdin:
@@ -391,7 +406,7 @@ def _read_summary_input(summary: str, summary_file: str, stdin: bool) -> str:
         if data:
             return data
 
-    typer.echo("❌ Provide summary text with --summary, --summary-file, or --stdin.", err=True)
+    _echo("❌ Provide summary text with --summary, --summary-file, or --stdin.", err=True)
     raise typer.Exit(1)
 
 
@@ -475,71 +490,68 @@ Saved an automated memory checkpoint after file activity settled.
 @app.command()
 def init():
     """One-time setup - Obsidian is optional, local memory.md fallback is supported."""
-    typer.echo("agent-mem setup (Obsidian path is optional)")
-    vault = typer.prompt(
-        "Full path to your Obsidian vault (press Enter to skip and use local memory.md)",
-        default="",
-    )
+    _echo("agent-mem setup (Obsidian path is optional)")
+    vault = _prompt("Full path to your Obsidian vault (press Enter to skip and use local memory.md)", default="")
 
     config = {"use_obsidian": False, "obsidian_vault": None}
     if vault.strip():
         vault_path = Path(vault).expanduser().resolve()
         if vault_path.exists():
             config = {"use_obsidian": True, "obsidian_vault": str(vault_path)}
-            typer.echo(f"✅ Using Obsidian vault: {vault_path}")
+            _echo(f"✅ Using Obsidian vault: {vault_path}")
         else:
-            typer.echo("⚠️ Path does not exist. Falling back to local memory.md", err=True)
+            _echo("⚠️ Path does not exist. Falling back to local memory.md", err=True)
     else:
-        typer.echo("✅ Using simple local memory.md fallback in project folder")
+        _echo("✅ Using simple local memory.md fallback in project folder")
 
     save_config(config)
-    typer.echo(f"✅ Config saved to {CONFIG_FILE}")
+    _echo(f"✅ Config saved to {CONFIG_FILE}")
 
     project_root = _project_root()
     created_storage = initialize_storage(project_root)
     memory_dir = get_memory_dir(project_root)
-    typer.echo(f"Project root for setup: {project_root}")
-    typer.echo(f"Memory storage   : {memory_dir}")
+    _echo(f"Project root for setup: {project_root}")
+    _echo(f"Memory storage   : {memory_dir}")
     if created_storage:
-        typer.echo("✅ Created storage files:")
+        _echo("✅ Created storage files:")
         for path in created_storage:
-            typer.echo(f"  - {path}")
+            _echo(f"  - {path}")
     if config.get("use_obsidian"):
-        typer.echo("Obsidian mode    : Connected")
-        typer.echo("Notes written here will appear in Obsidian automatically because they are plain Markdown inside your vault.")
+        _echo("Obsidian mode    : Connected")
+        _echo("Notes written here will appear in Obsidian automatically because they are plain Markdown inside your vault.")
     else:
-        typer.echo("Obsidian mode    : Disabled (local fallback active)")
+        _echo("Obsidian mode    : Disabled (local fallback active)")
 
-    if typer.confirm(
+    if _confirm(
         "Create automatic instruction files for Cursor/Claude/Antigravity/OpenCode? (recommended)",
         default=True,
     ):
         result = _create_instruction_files(project_root)
         if result["created"]:
-            typer.echo("✅ Created instruction files:")
+            _echo("✅ Created instruction files:")
             for relative_path in result["created"]:
-                typer.echo(f"  - {relative_path}")
+                _echo(f"  - {relative_path}")
         if result["updated"]:
-            typer.echo("✅ Updated instruction files:")
+            _echo("✅ Updated instruction files:")
             for relative_path in result["updated"]:
-                typer.echo(f"  - {relative_path}")
-        typer.echo("Restart your IDE chat (or reload rules) to apply instruction changes.")
+                _echo(f"  - {relative_path}")
+        _echo("Restart your IDE chat (or reload rules) to apply instruction changes.")
 
-    if typer.confirm(
+    if _confirm(
         "Create/update local MCP config files (.vscode/mcp.json and .cursor/mcp.json)? (optional)",
         default=False,
     ):
         written_paths = _create_local_mcp_configs(project_root)
-        typer.echo("✅ MCP config updated:")
+        _echo("✅ MCP config updated:")
         for config_path in written_paths:
-            typer.echo(f"  - {config_path}")
+            _echo(f"  - {config_path}")
 
-    typer.echo("\nSetup complete!")
-    typer.echo("Recommended next steps:")
-    typer.echo("  1. Add AGENT-MEM-RULES.md to your IDE custom instructions")
-    typer.echo('  2. Save a session with: agent-mem summarize --summary "..."')
-    typer.echo('  3. Recall context with: agent-mem recall "current goal"')
-    typer.echo('Optional MCP mode: pip install "easy-agent-mem[mcp]" && agent-mem serve')
+    _echo("\nSetup complete!")
+    _echo("Recommended next steps:")
+    _echo("  1. Add AGENT-MEM-RULES.md to your IDE custom instructions")
+    _echo('  2. Save a session with: agent-mem summarize --summary "..."')
+    _echo('  3. Recall context with: agent-mem recall "current goal"')
+    _echo('Optional MCP mode: pip install "easy-agent-mem[mcp]" && agent-mem serve')
 
 
 @app.command()
@@ -550,19 +562,19 @@ def setup():
     result = _create_instruction_files(project_root)
     written_paths = _create_local_mcp_configs(project_root)
 
-    typer.echo(f"Project root: {project_root}")
+    _echo(f"Project root: {project_root}")
     if result["created"]:
-        typer.echo("✅ Created instruction files:")
+        _echo("✅ Created instruction files:")
         for relative_path in result["created"]:
-            typer.echo(f"  - {relative_path}")
+            _echo(f"  - {relative_path}")
     if result["updated"]:
-        typer.echo("✅ Updated instruction files:")
+        _echo("✅ Updated instruction files:")
         for relative_path in result["updated"]:
-            typer.echo(f"  - {relative_path}")
+            _echo(f"  - {relative_path}")
 
-    typer.echo("✅ MCP config updated:")
+    _echo("✅ MCP config updated:")
     for config_path in written_paths:
-        typer.echo(f"  - {config_path}")
+        _echo(f"  - {config_path}")
 
 
 @app.command("setup-vscode")
@@ -580,10 +592,10 @@ def setup_vscode(
 
     written = _upsert_vscode_mcp_with_python(config_path, selected_python)
 
-    typer.echo("✅ VS Code MCP config written")
-    typer.echo(f"Path: {written}")
-    typer.echo("Server command uses:")
-    typer.echo(f"  {selected_python} -m agent_mem.cli serve")
+    _echo("✅ VS Code MCP config written")
+    _echo(f"Path: {written}")
+    _echo("Server command uses:")
+    _echo(f"  {selected_python} -m agent_mem.cli serve")
 
 
 @app.command("print-mcp-json")
@@ -599,7 +611,7 @@ def print_mcp_json(
     selected_python = _resolve_python_for_mcp(project_root, python)
     block = _build_mcp_json_with_python(selected_python)
 
-    typer.echo(json.dumps(block, indent=2))
+    _echo(json.dumps(block, indent=2))
 
 
 @app.command()
@@ -617,7 +629,7 @@ def summarize(
     saved_path = write_session_summary(effective_project_name, summary_text, project_root=project_root)
     mode = "Obsidian" if get_config().get("use_obsidian") else "local fallback"
 
-    typer.echo(f"✅ Summary saved to {mode}: {saved_path}")
+    _echo(f"✅ Summary saved to {mode}: {saved_path}")
 
 
 @app.command()
@@ -629,7 +641,7 @@ def recall(
     """Recall the most relevant saved memory for a task or question."""
     project_root = _project_root()
     effective_project_name = project_name.strip() or _project_name_from_root(project_root)
-    typer.echo(recall_memory(effective_project_name, query, count=count, project_root=project_root))
+    _echo(recall_memory(effective_project_name, query, count=count, project_root=project_root))
 
 
 @app.command()
@@ -649,12 +661,12 @@ def watch(
     pending_changes: set[str] = set()
     last_change_at: float | None = None
 
-    typer.echo(f"Watching {project_root}")
-    typer.echo(f"Project name     : {effective_project_name}")
-    typer.echo(f"Polling interval : {interval}s")
-    typer.echo(f"Quiet threshold  : {quiet_seconds}s")
-    typer.echo(f"Min changes      : {min_changes}")
-    typer.echo("Press Ctrl+C to stop.")
+    _echo(f"Watching {project_root}")
+    _echo(f"Project name     : {effective_project_name}")
+    _echo(f"Polling interval : {interval}s")
+    _echo(f"Quiet threshold  : {quiet_seconds}s")
+    _echo(f"Min changes      : {min_changes}")
+    _echo("Press Ctrl+C to stop.")
 
     try:
         while True:
@@ -666,7 +678,7 @@ def watch(
             if changed:
                 pending_changes.update(changed)
                 last_change_at = time.time()
-                typer.echo(f"Detected {len(changed)} changed files. Pending total: {len(pending_changes)}")
+                _echo(f"Detected {len(changed)} changed files. Pending total: {len(pending_changes)}")
                 continue
 
             if not pending_changes or last_change_at is None:
@@ -680,14 +692,14 @@ def watch(
 
             summary = _auto_summary(sorted(pending_changes), effective_project_name)
             saved_path = write_session_summary(effective_project_name, summary, project_root=project_root)
-            typer.echo(f"✅ Automatic checkpoint saved: {saved_path}")
+            _echo(f"✅ Automatic checkpoint saved: {saved_path}")
             pending_changes.clear()
             last_change_at = None
 
             if once:
                 return
     except KeyboardInterrupt:
-        typer.echo("\nStopped watch mode.")
+        _echo("\nStopped watch mode.")
 
 
 @app.command()
@@ -696,7 +708,7 @@ def serve():
     try:
         from .mcp_server import mcp
     except ImportError:
-        typer.echo(
+        _echo(
             '❌ MCP dependencies are not installed. Install with: pip install "easy-agent-mem[mcp]"',
             err=True,
         )
@@ -704,11 +716,11 @@ def serve():
 
     config = get_config()
     if config.get("use_obsidian") and not config.get("obsidian_vault"):
-        typer.echo("❌ Obsidian mode selected but no vault path found. Re-run agent-mem init.", err=True)
+        _echo("❌ Obsidian mode selected but no vault path found. Re-run agent-mem init.", err=True)
         raise typer.Exit(1)
 
-    typer.echo("agent-mem MCP server started (stdio transport)")
-    typer.echo("Tip: run 'agent-mem print-mcp-json' if you need a config block.")
+    _echo("agent-mem MCP server started (stdio transport)")
+    _echo("Tip: run 'agent-mem print-mcp-json' if you need a config block.")
     mcp.run()
 
 
@@ -723,17 +735,17 @@ def status():
         memory_dir = Path(vault) / "Memory" / "Agent-Mem"
         count = len(list(memory_dir.glob("*-session.md"))) if memory_dir.exists() else 0
         index_path = memory_dir / "Index.md"
-        typer.echo("Storage mode   : Obsidian")
-        typer.echo(f"Obsidian vault : {vault}")
-        typer.echo(f"Memory folder  : {memory_dir}")
-        typer.echo(f"Index note     : {index_path}")
-        typer.echo(f"Session notes  : {count} stored")
+        _echo("Storage mode   : Obsidian")
+        _echo(f"Obsidian vault : {vault}")
+        _echo(f"Memory folder  : {memory_dir}")
+        _echo(f"Index note     : {index_path}")
+        _echo(f"Session notes  : {count} stored")
         return
 
     fallback_file = project_root / ".agent-memory" / "memory.md"
-    typer.echo("Storage mode   : Local fallback")
-    typer.echo(f"Memory file    : {fallback_file}")
-    typer.echo(f"Memory exists  : {'yes' if fallback_file.exists() else 'no'}")
+    _echo("Storage mode   : Local fallback")
+    _echo(f"Memory file    : {fallback_file}")
+    _echo(f"Memory exists  : {'yes' if fallback_file.exists() else 'no'}")
 
 
 if __name__ == "__main__":

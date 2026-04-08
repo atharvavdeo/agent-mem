@@ -1,3 +1,5 @@
+![easy-agent-mem header](assets/repo-header.png)
+
 # agent-mem
 
 CLI-first persistent memory for AI coding sessions.
