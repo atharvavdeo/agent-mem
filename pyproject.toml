@@ -1,5 +1,5 @@
 [project]
-name = "atharva-agent-mem"
+name = "easy-agent-mem"
 version = "0.3.0"
 description = "Persistent memory layer for AI coding agents (Cursor / VS Code). Auto-summarizes sessions to Markdown / Obsidian."
 authors = [{ name = "Atharva", email = "atharva.v.deo@gmail.com" }]

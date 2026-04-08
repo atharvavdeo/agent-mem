@@ -304,7 +304,7 @@ def init():
 
     typer.echo("\nSetup complete!")
     typer.echo("Next: add AGENT-MEM-RULES.md to your IDE custom instructions.")
-    typer.echo('Optional MCP mode: pip install "atharva-agent-mem[mcp]" && agent-mem serve')
+    typer.echo('Optional MCP mode: pip install "easy-agent-mem[mcp]" && agent-mem serve')
 
 
 @app.command()
@@ -374,7 +374,7 @@ def serve():
         from .mcp_server import mcp
     except ImportError:
         typer.echo(
-            '❌ MCP dependencies are not installed. Install with: pip install "atharva-agent-mem[mcp]"',
+            '❌ MCP dependencies are not installed. Install with: pip install "easy-agent-mem[mcp]"',
             err=True,
         )
         raise typer.Exit(1)

@@ -1,92 +1,73 @@
 # agent-mem
 
-agent-mem is a lightweight, local-first persistent memory layer for AI coding agents in IDEs like VS Code and Cursor.
+**Persistent memory layer for AI coding agents** (Cursor, VS Code + Claude Code, etc.)
 
-It helps you keep project context stable across chats by:
+Tired of repeating context every time you start a new chat?
+`agent-mem` automatically maintains a clean project memory file so your agent always knows what happened before - without bloating the context window.
 
-- creating a strong instruction file (`AGENT-MEM-RULES.md`)
-- maintaining a clean memory source (`.agent-memory/memory.md`)
-- optionally using Obsidian (`<vault>/Memory/Agent-Mem/`)
+## Features
+
+- Simple local fallback: `.agent-memory/memory.md`
+- Optional Obsidian vault support (with full graph view, backlinks, Canvas)
+- Auto-generates strong agent instruction rules
+- Zero extra models or API keys needed
+- Works with any MCP-compatible IDE (Cursor, VS Code, etc.)
+- Extremely lightweight
+
+## Installation
+
+```bash
+pip install easy-agent-mem
+```
 
 ## Quick Start
 
 ```bash
-pip install atharva-agent-mem
-
+# 1. One-time setup
 agent-mem init
-# Follow prompts (Obsidian optional)
 
-# Then add the generated AGENT-MEM-RULES.md content to your IDE custom instructions
+# 2. (Recommended) Add the generated rules to your IDE
+#    - Cursor: Settings -> Custom Instructions
+#    - VS Code: Create CLAUDE.md or .claude/instructions.md in project root
 ```
+
+During `init` you can:
+
+- Provide an Obsidian vault path (optional)
+- Or just press Enter to use the simple local `.agent-memory/memory.md` fallback
 
 ## How It Works
 
-1. Run `agent-mem init` in your project root.
-2. agent-mem creates instruction files and initializes local memory fallback.
-3. Your agent reads project memory first before planning or coding.
-4. As chat context grows, your agent appends concise session summaries.
+1. `agent-mem init` creates:
+   - `AGENT-MEM-RULES.md` (strong instructions for the agent)
+   - `.agent-memory/memory.md` (or Obsidian notes)
 
-This keeps memory durable without relying on long chat history.
+2. Add the rules from `AGENT-MEM-RULES.md` to your IDE's custom instructions.
 
-## What `agent-mem init` Creates
+3. From then on, your agent will:
+   - Read memory first in every new chat
+   - Summarize sessions when context gets long
+   - Keep a clean, persistent project history
 
-- `AGENT-MEM-RULES.md` (main rule file)
-- `.cursor/rules/agent-mem.mdc`
-- `.claude/instructions.md`
-- `CLAUDE.md`
-- `.antigravity/rules.md`
-- `.opencode/instructions.md`
+## Example Usage in Chat
 
-Optional local MCP config files can also be generated:
+Tell your agent:
+> "Summarize this session for memory"
 
-- `.vscode/mcp.json`
-- `.cursor/mcp.json`
+It will create a clean summary and append it to memory. Then start a fresh chat - the agent will automatically load the latest memory.
 
-## Storage Modes
-
-- Local-first (default): `<project-root>/.agent-memory/memory.md`
-- Optional Obsidian: `<vault>/Memory/Agent-Mem/`
-
-If Obsidian path is missing or invalid, agent-mem automatically uses local fallback.
-
-## CLI Commands
-
-- `agent-mem init`: interactive setup (recommended)
-- `agent-mem setup`: create instruction files and local MCP configs
-- `agent-mem status`: show active storage mode and memory location
-- `agent-mem print-mcp-json`: print MCP JSON block for manual config
-- `agent-mem setup-vscode`: write `.vscode/mcp.json` with selected Python path
-- `agent-mem serve`: run optional MCP server (requires MCP extra)
-
-## Optional MCP Mode
-
-MCP is optional for v0.3.0. Base usage does not require it.
+## Commands
 
 ```bash
-pip install "atharva-agent-mem[mcp]"
-agent-mem serve
+agent-mem init          # Setup (Obsidian optional)
+agent-mem status        # Show current config
+agent-mem --help        # Full help
 ```
 
-Example MCP config:
+## Project Links
 
-```json
-{
-  "mcpServers": {
-    "agent-mem": {
-      "command": "agent-mem",
-      "args": ["serve"]
-    }
-  }
-}
-```
-
-## Development Build Check
-
-```bash
-pip install build twine
-python -m build
-twine check dist/*
-```
+- PyPI: [https://pypi.org/project/easy-agent-mem/](https://pypi.org/project/easy-agent-mem/)
+- Source: [https://github.com/atharvavdeo/agent-mem](https://github.com/atharvavdeo/agent-mem)
 
 ## License
 
