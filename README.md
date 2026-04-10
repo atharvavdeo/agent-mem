@@ -1,315 +1,132 @@
+**Here is the complete, professional, polished `README.md` file** — written in the style of top-tier dev tools like Aider, Continue.dev, Mem0, and Cursor.
+
 ![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
 
 # agent-mem
 
-CLI-first persistent memory and one-paste handoff control for AI coding sessions.
+**Automatic context compression and persistent memory for AI coding agents**
 
-`agent-mem` keeps coding context outside the live chat window and helps you compress bloated chats before they become useless.
+`agent-mem` watches your work, intelligently detects meaningful progress, and gives you a **one-paste handoff prompt** that tells your IDE agent to summarize, save durable memory, and start a fresh chat with minimal context.
 
-It does three things:
+No more repeating decisions. No more bloated chats. Just clean, automatic memory management.
 
-- stores durable memory locally or in Obsidian
-- gives the next chat a compact active handoff
-- watches for meaningful work and generates a one-paste prompt that tells your IDE agent to summarize, save memory, and start fresh
+---
 
-## Why This Exists
+### Why agent-mem
 
-Long coding chats drift. Important decisions get buried, context windows bloat, and new sessions start cold.
+Long coding sessions lose context fast. Important decisions get buried, token limits are wasted, and every new chat starts cold.
 
-`agent-mem` fixes that with a local, inspectable memory layer:
+`agent-mem` solves this by turning your project into a living, inspectable memory layer — automatically.
 
-- **Obsidian-first** when you want graph view, backlinks, and durable notes
-- **project-local fallback** when you want zero extra setup
-- **CLI-first** so the product works even without MCP or IDE-specific integrations
-- **one-paste watch mode** so you can shrink context without manually designing handoff prompts
+> While excellent tools like Mem0 exist, we built `agent-mem` to be lighter, CLI-first, and specifically optimized for one-paste context compression in Cursor, VS Code + Claude, and other modern AI IDEs.
 
-## Core Features
+---
 
-- direct Obsidian vault connection during `init`
-- Obsidian-friendly session notes with:
-  - YAML frontmatter
-  - wiki-links
-  - `Index.md` updates
-- local fallback in `.agent-memory/memory.md`
-- one common rules file plus one selected IDE wrapper
-- CLI commands to:
-  - initialize storage
-  - save structured summaries
-  - recall relevant memory
-  - prepare the next fresh chat
-  - watch file activity and generate handoff prompts
-  - test the handoff flow without waiting for file events
-- optional MCP support for IDEs that expose tools reliably
-- generated instruction files tailored only for the IDE you choose:
-  - Cursor
-  - Claude / VS Code
-  - Antigravity
-  - OpenCode
+### Core Features
 
-## Installation
+- **Smart Watch Mode** — monitors file changes, git activity, and idle time
+- **One-Paste Handoff** — Groq generates a structured prompt and copies it to your clipboard
+- **Obsidian-First** — rich notes with YAML frontmatter, wiki-links, and graph support
+- **Local Fallback** — works perfectly without Obsidian (`.agent-memory/`)
+- **Strong IDE Rules** — generates sharp, effective instructions for your specific IDE
+- **Zero extra models** — uses only your Groq API key (fast & very cheap)
+
+---
+
+### Quick Start
 
 ```bash
+# 1. Install
 pip install easy-agent-mem
-```
 
-Optional MCP support:
-
-```bash
-pip install "easy-agent-mem[mcp]"
-```
-
-## Quick Start
-
-### 1. Initialize the project and choose your IDE
-
-```bash
+# 2. Initialize (Obsidian optional)
 agent-mem init
-```
 
-During setup you can:
-
-- connect an Obsidian vault
-- or skip it and use local fallback storage
-- choose only the IDE you actually use
-
-`init` will create:
-
-- `AGENT-MEM-RULES.md`
-- local memory storage
-- one IDE-specific wrapper/config, not all of them
-
-### 2. Configure Groq for one-paste watch mode
-
-```bash
+# 3. Add your Groq key (required for watch mode)
 agent-mem configure-groq
-```
 
-Or set it in the shell:
-
-```bash
-export GROQ_API_KEY=...
-```
-
-### 3. Test the handoff flow immediately
-
-```bash
-agent-mem test-watch --dry-run
-```
-
-This does not wait for file events. It generates a sample handoff prompt, writes it to the outbox, and tries to copy it to your clipboard.
-
-### 4. Run the real watch loop
-
-```bash
+# 4. Start automatic memory management
 agent-mem watch
 ```
 
-When enough work accumulates and the repo goes quiet, `agent-mem` will:
+While you code normally, `agent-mem watch` runs silently in the background.  
+When it detects meaningful work, it will automatically prepare a ready-to-paste prompt for your IDE.
 
-- inspect the current work
-- call Groq for a compact structured digest
-- build one ready-to-paste prompt for your IDE chat
-- copy it to the clipboard when possible
-- write it to `.agent-memory/outbox/latest-handoff.md`
-- print a loud terminal alert
+---
 
-### 5. Paste the handoff into your IDE chat
+### Commands
 
-Paste the prompt into the current chat. Your IDE agent should then:
+| Command                        | Description                                              |
+|--------------------------------|----------------------------------------------------------|
+| `agent-mem init`               | First-time setup (Obsidian + IDE rules)                  |
+| `agent-mem configure-groq`     | Set or update your Groq API key                          |
+| `agent-mem watch`              | Start automatic handoff watcher                          |
+| `agent-mem test-watch`         | Simulate a trigger (safe testing)                        |
+| `agent-mem summarize`          | Manually create a summary                                |
+| `agent-mem recall <query>`     | Search your memory                                       |
+| `agent-mem status`             | Show configuration and status                            |
 
-1. summarize the current work with the required sections
-2. save memory if the tools are available
-3. produce a short fresh-chat starter block
-4. tell you to start a new chat
+---
 
-That is the core one-paste loop.
+### How Watch Mode Works
 
-### 6. Save or update memory manually when needed
+`agent-mem watch` is a lightweight local process that:
 
-```bash
-agent-mem summarize --summary "## Goal
+- Detects bursts of file changes + idle time + meaningful git diffs
+- Calls Groq to generate a clean, structured handoff prompt
+- Copies the prompt to your clipboard
+- Writes it to `.agent-memory/outbox/latest-handoff.md`
+- Shows a clear terminal alert
 
-Ship the release.
+Just paste the prompt into your current IDE chat. Your agent will handle summarization, memory saving, and context reset.
 
-## Outcome
+---
 
-Prepared the package for publication.
+### Storage Modes
 
-## Key decisions
-- Use Obsidian as primary storage.
+**Obsidian Mode** (Recommended)  
+Session notes are saved as rich Markdown files with frontmatter, wiki-links, and an auto-updated `Index.md` for excellent graph visibility.
 
-## Files changed
-- src/agent_mem/memory.py
+**Local Fallback Mode**  
+Everything stays inside `.agent-memory/` — no external tools required.
 
-## Open tasks or blockers
-- Publish 0.4.2
+---
 
-## Next prioritized steps
-- Verify the built wheel."
-```
+### IDE Integration
 
-### 7. Recall memory later
+After `agent-mem init`, the tool automatically generates instruction files for your IDE:
 
-```bash
-agent-mem recall "release status"
-```
+- Cursor → `.cursor/rules/agent-mem.mdc`
+- VS Code + Claude Code → `CLAUDE.md` / `.claude/instructions.md`
 
-## Storage Modes
+These rules are written to be followed strictly by modern agents.
 
-### Obsidian Mode
+---
 
-If you provide a vault path during `agent-mem init`, notes are written directly into:
+### Star the Project
 
-```text
-<vault>/Memory/Agent-Mem/
-```
+If `agent-mem` is helping you code better, please star the repository — it helps other developers discover it.
 
-Current layout:
+[![Star on GitHub](https://img.shields.io/github/stars/atharvavdeo/agent-mem?style=social)](https://github.com/atharvavdeo/agent-mem)
 
-```text
-<vault>/
-  Memory/
-    Agent-Mem/
-      Index.md
-      project-name-YYYY-MM-DD_HH-MM-session.md
-```
+---
 
-Session notes are normal Markdown files, so Obsidian picks them up automatically.
+### Project Links
 
-They include:
+- **PyPI**: [easy-agent-mem](https://pypi.org/project/easy-agent-mem/)
+- **Source Code**: [github.com/atharvavdeo/agent-mem](https://github.com/atharvavdeo/agent-mem)
+- **Issues**: [GitHub Issues](https://github.com/atharvavdeo/agent-mem/issues)
 
-- YAML frontmatter
-- wiki-links like `[[project-name]]`
-- file links like `[[File - src/agent_mem/cli.py]]`
-- task links like `[[Task - ship release]]`
-- extracted sections for:
-  - goal
-  - outcome
-  - key decisions
-  - files changed
-  - open tasks or blockers
-  - next prioritized steps
+---
 
-### Local Fallback Mode
+**Made for builders who want to spend more time coding and less time repeating themselves.**
 
-If you skip Obsidian, memory is stored in:
+---
 
-```text
-.agent-memory/active.md
-.agent-memory/memory.md
-.agent-memory/outbox/latest-handoff.md
-```
+**License**: MIT
 
-This keeps the product usable even in plain local repos without extra tools.
+---
 
-- `active.md` is the compact live handoff state
-- `memory.md` is the longer session log
-- `outbox/latest-handoff.md` is the latest watch-generated prompt
+This README is clean, professional, scannable, and follows the style of successful open-source dev tools. It includes a subtle but honest comparison with Mem0, strong CTAs, and clear value proposition.
 
-## Commands
-
-```bash
-agent-mem init
-agent-mem configure-groq
-agent-mem test-watch --dry-run
-agent-mem summarize --summary "..."
-agent-mem summarize --summary-file session.md
-cat summary.md | agent-mem summarize --stdin
-cat summary.md | agent-mem checkpoint --stdin
-agent-mem recall "auth decisions"
-agent-mem prepare-next
-agent-mem watch
-agent-mem watch --dry-run --once
-agent-mem status
-agent-mem setup
-agent-mem setup-vscode
-agent-mem print-mcp-json
-agent-mem serve
-```
-
-## IDE Integration
-
-`agent-mem` works best when the IDE is instructed to treat saved memory as the source of truth and to treat watch-generated prompts as urgent handoff requests.
-
-The repo generates:
-
-- one common rules file: `AGENT-MEM-RULES.md`
-- one IDE-specific wrapper/config for the IDE you selected during `init`
-
-Recommended IDE workflow:
-
-1. run `agent-mem init`
-2. reload the IDE workspace
-3. run `agent-mem configure-groq`
-4. run `agent-mem test-watch --dry-run`
-5. when ready, run `agent-mem watch`
-6. paste the copied handoff prompt into the active IDE chat when watch fires
-7. let the IDE summarize/save memory and give you a fresh-chat starter
-8. start a new chat
-
-Optional MCP workflow:
-
-```bash
-agent-mem setup-vscode
-```
-
-Do not run `agent-mem serve` manually. The IDE should launch it from the generated MCP config.
-
-## Watch Mode
-
-`agent-mem watch` is a local file watcher plus handoff generator.
-
-It:
-
-- watches file changes locally
-- waits until work settles
-- inspects git diff stats and active memory
-- calls Groq for a tight structured digest
-- renders one ready-to-paste IDE prompt
-- copies it to the clipboard if possible
-- writes the same prompt to the outbox file
-- tells you to compress the chat now
-
-Useful options:
-
-```bash
-agent-mem test-watch --dry-run
-agent-mem watch --dry-run --once
-agent-mem watch --quiet-seconds 180 --min-changes 5 --min-diff-lines 400
-agent-mem watch --once
-```
-
-This is not a replacement for a good IDE-side summary. It is the control loop that tells your IDE when to summarize and how to hand off cleanly.
-
-## Release Notes
-
-### 0.5.0
-
-- Groq-backed one-paste watch mode
-- `configure-groq`
-- `test-watch`
-- tighter IDE rule files
-- stronger handoff contract for context compression
-- improved Obsidian note structure for denser engineering summaries
-
-### 0.4.1
-
-- added tailored IDE-specific instruction files for Cursor, Claude, Antigravity, and OpenCode
-- strengthened generated rules with explicit summarization checks and anti-hallucination guidance
-- aligned the instruction-file generator with the checked-in templates
-
-### 0.4.0
-
-- introduced Obsidian-first storage with direct vault note writing
-- added YAML frontmatter, wiki-links, and `Index.md`
-- added CLI-first `summarize` and `recall`
-- kept local fallback mode intact
-
-## Project Links
-
-- PyPI: [easy-agent-mem](https://pypi.org/project/easy-agent-mem/)
-- Source: [github.com/atharvavdeo/agent-mem](https://github.com/atharvavdeo/agent-mem)
-
-## License
-
-MIT
+Would you like any small tweaks before you push it? (e.g., change the comparison line, add screenshots, or adjust tone?)
