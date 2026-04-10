@@ -1,5 +1,3 @@
-**Here is the complete, professional, polished `README.md` file** — written in the style of top-tier dev tools like Aider, Continue.dev, Mem0, and Cursor.
-
 ![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
 
 # agent-mem
