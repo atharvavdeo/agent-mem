@@ -124,7 +124,3 @@ If `agent-mem` is helping you code better, please star the repository — it hel
 **License**: MIT
 
 ---
-
-This README is clean, professional, scannable, and follows the style of successful open-source dev tools. It includes a subtle but honest comparison with Mem0, strong CTAs, and clear value proposition.
-
-Would you like any small tweaks before you push it? (e.g., change the comparison line, add screenshots, or adjust tone?)
