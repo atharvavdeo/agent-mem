@@ -1,4 +1,4 @@
-![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
+![agent-mem header](assets/repo-header.png)
 
 # agent-mem
 
