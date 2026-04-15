@@ -1,5 +1,14 @@
 ![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
 
+![PyPI version](https://img.shields.io/pypi/v/easy-agent-mem)
+![Python version](https://img.shields.io/pypi/pyversions/easy-agent-mem)
+![License](https://img.shields.io/pypi/l/easy-agent-mem)
+![GitHub stars](https://img.shields.io/github/stars/atharvavdeo/agent-mem?style=social)
+![GitHub forks](https://img.shields.io/github/forks/atharvavdeo/agent-mem?style=social)
+![GitHub issues](https://img.shields.io/github/issues/atharvavdeo/agent-mem)
+![PyPI downloads](https://img.shields.io/pypi/dm/easy-agent-mem)
+![Last commit](https://img.shields.io/github/last-commit/atharvavdeo/agent-mem)
+
 # agent-mem
 
 **Automatic context compression and persistent memory for AI coding agents**
@@ -15,15 +24,6 @@
 - Rich Obsidian-first storage with wiki-links and frontmatter
 - Local fallback mode (`.agent-memory/`)
 - New: **`graph` command** - builds an Obsidian-native knowledge graph from code, chat history, and memory
-
----
-
-### Badges
-
-![PyPI version](https://img.shields.io/pypi/v/easy-agent-mem)
-![Python version](https://img.shields.io/pypi/pyversions/easy-agent-mem)
-![License](https://img.shields.io/pypi/l/easy-agent-mem)
-![GitHub stars](https://img.shields.io/github/stars/atharvavdeo/agent-mem?style=social)
 
 ---
 
