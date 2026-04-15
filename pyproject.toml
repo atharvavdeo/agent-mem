@@ -1,6 +1,6 @@
 [project]
 name = "easy-agent-mem"
-version = "0.5.1"
+version = "0.5.2"
 description = "CLI-first persistent memory for AI coding sessions with direct Obsidian note writing and local fallback storage."
 authors = [{ name = "Atharva", email = "atharva.v.deo@gmail.com" }]
 readme = "README.md"
@@ -19,6 +19,11 @@ dependencies = [
     "groq>=0.8",
     "pyperclip>=1.9",
 ]
+
+[project.urls]
+Homepage = "https://github.com/atharvavdeo/agent-mem"
+Repository = "https://github.com/atharvavdeo/agent-mem"
+Issues = "https://github.com/atharvavdeo/agent-mem/issues"
 
 [project.optional-dependencies]
 mcp = ["mcp>=0.3"]

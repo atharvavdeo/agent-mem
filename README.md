@@ -1,126 +1,123 @@
-![agent-mem header](assets/repo-header.png)
+![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
 
 # agent-mem
 
 **Automatic context compression and persistent memory for AI coding agents**
 
-`agent-mem` watches your work, intelligently detects meaningful progress, and gives you a **one-paste handoff prompt** that tells your IDE agent to summarize, save durable memory, and start a fresh chat with minimal context.
-
-No more repeating decisions. No more bloated chats. Just clean, automatic memory management.
+`agent-mem` watches your work, detects meaningful progress, and gives you a **one-paste handoff prompt** that tells your IDE agent to summarize, save memory, and start fresh with minimal context.
 
 ---
 
-### Why agent-mem
+### Features
 
-Long coding sessions lose context fast. Important decisions get buried, token limits are wasted, and every new chat starts cold.
-
-`agent-mem` solves this by turning your project into a living, inspectable memory layer — automatically.
-
-> While excellent tools like Mem0 exist, we built `agent-mem` to be lighter, CLI-first, and specifically optimized for one-paste context compression in Cursor, VS Code + Claude, and other modern AI IDEs.
+- Smart `watch` mode with file + git + idle detection
+- One-paste handoff prompts (Groq powered, optional)
+- Rich Obsidian-first storage with wiki-links and frontmatter
+- Local fallback mode (`.agent-memory/`)
+- New: **`graph` command** - builds an Obsidian-native knowledge graph from code, chat history, and memory
 
 ---
 
-### Core Features
+### Badges
 
-- **Smart Watch Mode** — monitors file changes, git activity, and idle time
-- **One-Paste Handoff** — Groq generates a structured prompt and copies it to your clipboard
-- **Obsidian-First** — rich notes with YAML frontmatter, wiki-links, and graph support
-- **Local Fallback** — works perfectly without Obsidian (`.agent-memory/`)
-- **Strong IDE Rules** — generates sharp, effective instructions for your specific IDE
-- **Zero extra models** — uses only your Groq API key (fast & very cheap)
+![PyPI version](https://img.shields.io/pypi/v/easy-agent-mem)
+![Python version](https://img.shields.io/pypi/pyversions/easy-agent-mem)
+![License](https://img.shields.io/pypi/l/easy-agent-mem)
+![GitHub stars](https://img.shields.io/github/stars/atharvavdeo/agent-mem?style=social)
 
 ---
 
 ### Quick Start
 
 ```bash
-# 1. Install
 pip install easy-agent-mem
 
-# 2. Initialize (Obsidian optional)
 agent-mem init
-
-# 3. Add your Groq key (required for watch mode)
-agent-mem configure-groq
-
-# 4. Start automatic memory management
-agent-mem watch
+agent-mem configure-groq          # optional but recommended
+agent-mem watch                   # start automatic handoff mode
 ```
 
-While you code normally, `agent-mem watch` runs silently in the background.  
-When it detects meaningful work, it will automatically prepare a ready-to-paste prompt for your IDE.
+New in v0.5+:  
+`agent-mem graph build` -> creates a full knowledge graph in `agent-mem-output/`
 
 ---
 
-### Commands
+### New: Knowledge Graph (`agent-mem graph`)
 
-| Command                        | Description                                              |
-|--------------------------------|----------------------------------------------------------|
-| `agent-mem init`               | First-time setup (Obsidian + IDE rules)                  |
-| `agent-mem configure-groq`     | Set or update your Groq API key                          |
-| `agent-mem watch`              | Start automatic handoff watcher                          |
-| `agent-mem test-watch`         | Simulate a trigger (safe testing)                        |
-| `agent-mem summarize`          | Manually create a summary                                |
-| `agent-mem recall <query>`     | Search your memory                                       |
-| `agent-mem status`             | Show configuration and status                            |
+```bash
+agent-mem graph build              # Basic deterministic graph
+agent-mem graph build --enrich     # Enrich with Groq (inferred relationships)
+agent-mem graph build --compact    # Compact mode for large projects
+```
 
----
+**Output**: Clean Obsidian-ready Markdown files in `agent-mem-output/`  
+- `Index.md` - beautiful dashboard
+- Code structure, decisions, blockers, concepts, sessions
+- Clear `EXTRACTED` vs `INFERRED` labeling with confidence scores
 
-### How Watch Mode Works
-
-`agent-mem watch` is a lightweight local process that:
-
-- Detects bursts of file changes + idle time + meaningful git diffs
-- Calls Groq to generate a clean, structured handoff prompt
-- Copies the prompt to your clipboard
-- Writes it to `.agent-memory/outbox/latest-handoff.md`
-- Shows a clear terminal alert
-
-Just paste the prompt into your current IDE chat. Your agent will handle summarization, memory saving, and context reset.
+Open `agent-mem-output/Index.md` in Obsidian for full graph navigation and backlinks.
 
 ---
 
-### Storage Modes
+### Commands Overview
 
-**Obsidian Mode** (Recommended)  
-Session notes are saved as rich Markdown files with frontmatter, wiki-links, and an auto-updated `Index.md` for excellent graph visibility.
-
-**Local Fallback Mode**  
-Everything stays inside `.agent-memory/` — no external tools required.
-
----
-
-### IDE Integration
-
-After `agent-mem init`, the tool automatically generates instruction files for your IDE:
-
-- Cursor → `.cursor/rules/agent-mem.mdc`
-- VS Code + Claude Code → `CLAUDE.md` / `.claude/instructions.md`
-
-These rules are written to be followed strictly by modern agents.
-
----
-
-### Star the Project
-
-If `agent-mem` is helping you code better, please star the repository — it helps other developers discover it.
-
-[![Star on GitHub](https://img.shields.io/github/stars/atharvavdeo/agent-mem?style=social)](https://github.com/atharvavdeo/agent-mem)
+| Command                        | Description                                      |
+|-------------------------------|--------------------------------------------------|
+| `agent-mem init`              | Setup Obsidian / fallback + IDE rules            |
+| `agent-mem configure-groq`    | Set Groq API key                                 |
+| `agent-mem watch`             | Automatic one-paste handoff watcher              |
+| `agent-mem graph build`       | Build knowledge graph (new)                      |
+| `agent-mem summarize`         | Manual summary                                   |
+| `agent-mem recall <query>`    | Search memory                                    |
 
 ---
 
 ### Project Links
 
-- **PyPI**: [easy-agent-mem](https://pypi.org/project/easy-agent-mem/)
-- **Source Code**: [github.com/atharvavdeo/agent-mem](https://github.com/atharvavdeo/agent-mem)
-- **Issues**: [GitHub Issues](https://github.com/atharvavdeo/agent-mem/issues)
+- PyPI: https://pypi.org/project/easy-agent-mem/
+- GitHub: https://github.com/atharvavdeo/agent-mem
 
 ---
 
-**Made for builders who want to spend more time coding and less time repeating themselves.**
+**Made for developers who want their AI agent to actually remember things.**
 
 ---
 
 **License**: MIT
 
 ---
+
+### How to Update README
+
+1. Open your `README.md`
+2. Replace the entire content with the text above
+3. Save and commit:
+
+```bash
+git add README.md
+git commit -m "docs: update README with badges and graph feature"
+git push
+```
+
+---
+
+### What Part Requires Improvement (Specific Feedback)
+
+**Current State (Good):**
+- Core graph building works
+- Compact mode and enrichment are implemented
+- Output is Obsidian-friendly
+
+**Areas that still need improvement (Priority order):**
+
+1. **Index.md is still a bit basic**  
+	-> Can be made more dashboard-like with better stats layout and visual separation.
+
+2. **Error handling when Groq key is missing/invalid**  
+	-> Currently it fails silently or shows confusing messages. Should give clear user-friendly message.
+
+3. **Documentation in README**  
+	-> The new `graph` command section is missing detailed examples and flags explanation.
+
+4. **Performance on very large projects**  
+	-> Scanning thousands of files can be slow. Compact mode helps but can be optimized further.

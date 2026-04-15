@@ -8,6 +8,7 @@ import click
 import typer
 
 from .config import CONFIG_FILE, get_config, get_groq_api_key, save_config
+from .graph import build_graph
 from .memory import (
     get_active_context_file,
     get_fallback_memory_file,
@@ -20,6 +21,8 @@ from .memory import (
 )
 
 app = typer.Typer()
+graph_app = typer.Typer(help="Build Obsidian-friendly project knowledge notes.")
+app.add_typer(graph_app, name="graph")
 
 
 def _echo(message: str = "", err: bool = False):
@@ -59,6 +62,7 @@ def _quickstart_lines(project_root: Path | None = None) -> list[str]:
         "  agent-mem checkpoint --stdin",
         '  agent-mem recall \"current goal\"',
         "  agent-mem prepare-next",
+        "  agent-mem graph build",
         "  agent-mem status",
         "",
         "Important:",
@@ -66,6 +70,7 @@ def _quickstart_lines(project_root: Path | None = None) -> list[str]:
         "  - During `init`, choose the IDE you actually use.",
         "  - Only that IDE's prompt/MCP files will be created.",
         "  - `watch` generates a one-paste handoff prompt for your IDE chat.",
+        "  - `graph build` generates Obsidian-friendly project knowledge notes.",
     ]
 
 
@@ -498,6 +503,90 @@ def _read_summary_input(summary: str, summary_file: str, stdin: bool) -> str:
     raise typer.Exit(1)
 
 
+def _run_graph_build(
+    enrich: bool,
+    compact: bool,
+    exclude_file_patterns: List[str] | None = None,
+    project_root: Path | None = None,
+):
+    resolved_root = (project_root or _project_root()).resolve()
+    _echo("Building project knowledge graph...")
+    try:
+        result = build_graph(
+            project_root=resolved_root,
+            enrich=enrich,
+            exclude_file_patterns=exclude_file_patterns or [],
+            compact=compact,
+        )
+    except Exception as exc:
+        _echo(f"❌ Graph build failed: {exc}", err=True)
+        raise typer.Exit(1)
+
+    _echo(f"✅ Graph notes generated at: {result.output_dir}")
+    _echo(f"Files written   : {len(result.files_written)}")
+    _echo(f"Python files    : {result.python_files_scanned}")
+    _echo(f"Classes         : {result.classes_found}")
+    _echo(f"Functions       : {result.functions_found}")
+    _echo(f"Imports         : {result.imports_found}")
+    _echo(f"Tagged comments : {result.comments_found}")
+    _echo(f"Decisions       : {result.decisions_found}")
+    _echo(f"Blockers        : {result.blockers_found}")
+    _echo(f"Concepts        : {result.concepts_found}")
+    _echo(f"LLM requested   : {'yes' if result.enrichment_requested else 'no'}")
+    _echo(f"LLM enriched    : {'yes' if result.enriched else 'no'}")
+    _echo(f"Compact mode    : {'yes' if result.compact else 'no'}")
+    if result.notes:
+        _echo("Notes:")
+        for note in result.notes:
+            _echo(f"  - {note}")
+
+
+@graph_app.callback(invoke_without_command=True)
+def graph(
+    ctx: typer.Context,
+    enrich: bool = typer.Option(
+        False,
+        "--enrich",
+        help="Enable optional LLM concept/relationship enrichment.",
+    ),
+    exclude_file_pattern: List[str] = typer.Option(
+        [],
+        "--exclude-file-pattern",
+        help="Glob pattern for Python files to exclude from graph extraction. Repeat the option for multiple patterns.",
+    ),
+    compact: bool = typer.Option(
+        False,
+        "--compact",
+        help="Generate compact notes for large projects with truncated function and concept lists.",
+    ),
+):
+    """Build markdown knowledge notes for code, memory, and sessions."""
+    if ctx.invoked_subcommand is None:
+        _run_graph_build(enrich=enrich, compact=compact, exclude_file_patterns=exclude_file_pattern)
+
+
+@graph_app.command("build")
+def graph_build(
+    enrich: bool = typer.Option(
+        False,
+        "--enrich",
+        help="Enable optional LLM concept/relationship enrichment.",
+    ),
+    exclude_file_pattern: List[str] = typer.Option(
+        [],
+        "--exclude-file-pattern",
+        help="Glob pattern for Python files to exclude from graph extraction. Repeat the option for multiple patterns.",
+    ),
+    compact: bool = typer.Option(
+        False,
+        "--compact",
+        help="Generate compact notes for large projects with truncated function and concept lists.",
+    ),
+):
+    """Generate the agent-mem-output knowledge notes folder."""
+    _run_graph_build(enrich=enrich, compact=compact, exclude_file_patterns=exclude_file_pattern)
+
+
 @app.command("configure-groq")
 def configure_groq(
     api_key: str = typer.Option("", "--api-key", help="Groq API key. If omitted, prompt securely."),
@@ -599,8 +688,12 @@ def init():
     _echo("  1. agent-mem checkpoint --stdin")
     _echo("  2. agent-mem prepare-next")
     _echo('  3. agent-mem recall "current goal"')
+    _echo("  4. agent-mem graph build")
     if written_paths:
         _echo("You do not need to run `agent-mem serve` manually. Your IDE will launch it from the generated MCP config.")
+
+    if _confirm("Generate initial graph notes now? (agent-mem-output/)", default=False):
+        _run_graph_build(enrich=False, project_root=project_root)
 
 
 @app.command()
@@ -889,22 +982,34 @@ def status():
         count = len(list(memory_dir.glob("*-session.md"))) if memory_dir.exists() else 0
         index_path = memory_dir / "Index.md"
         active_path = get_active_context_file(project_root)
+        graph_dir = project_root / "agent-mem-output"
+        graph_ready = graph_dir.exists()
+        graph_docs = len(list(graph_dir.rglob("*.md"))) if graph_ready else 0
         _echo("Storage mode   : Obsidian")
         _echo(f"Obsidian vault : {vault}")
         _echo(f"Memory folder  : {memory_dir}")
         _echo(f"Index note     : {index_path}")
         _echo(f"Active context : {active_path}")
         _echo(f"Session notes  : {count} stored")
+        _echo(f"Graph output   : {'yes' if graph_ready else 'no'}")
+        _echo(f"Graph docs     : {graph_docs}")
+        _echo("Graph command  : agent-mem graph build")
         _echo(f"Groq ready     : {groq_configured} ({groq_source})")
         _echo(f"Groq model     : {groq_model}")
         return
 
     fallback_file = project_root / ".agent-memory" / "memory.md"
     active_path = get_active_context_file(project_root)
+    graph_dir = project_root / "agent-mem-output"
+    graph_ready = graph_dir.exists()
+    graph_docs = len(list(graph_dir.rglob("*.md"))) if graph_ready else 0
     _echo("Storage mode   : Local fallback")
     _echo(f"Memory file    : {fallback_file}")
     _echo(f"Active context : {active_path}")
     _echo(f"Memory exists  : {'yes' if fallback_file.exists() else 'no'}")
+    _echo(f"Graph output   : {'yes' if graph_ready else 'no'}")
+    _echo(f"Graph docs     : {graph_docs}")
+    _echo("Graph command  : agent-mem graph build")
     _echo(f"Groq ready     : {groq_configured} ({groq_source})")
     _echo(f"Groq model     : {groq_model}")
 
