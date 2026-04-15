@@ -11,113 +11,152 @@
 
 # agent-mem
 
-**Automatic context compression and persistent memory for AI coding agents**
+Automatic context compression and persistent memory for AI coding agents.
 
-`agent-mem` watches your work, detects meaningful progress, and gives you a **one-paste handoff prompt** that tells your IDE agent to summarize, save memory, and start fresh with minimal context.
+`agent-mem` helps you keep long coding sessions coherent by capturing decisions, session context, and code signals in structured memory notes. It also generates Obsidian-friendly project graph docs so you can navigate architecture, decisions, blockers, and recent context quickly.
 
 ---
 
-### Features
+## Why Use agent-mem
+
+- Preserve critical context between chats and sessions
+- Reduce token waste from repeating project history
+- Keep technical decisions and blockers traceable
+- Generate a searchable Obsidian-native knowledge graph from code + memory
+
+---
+
+## Core Features
 
 - Smart `watch` mode with file + git + idle detection
-- One-paste handoff prompts (Groq powered, optional)
-- Rich Obsidian-first storage with wiki-links and frontmatter
-- Local fallback mode (`.agent-memory/`)
-- New: **`graph` command** - builds an Obsidian-native knowledge graph from code, chat history, and memory
+- One-paste handoff prompts (Groq-powered, optional)
+- Obsidian-first storage with wiki-links and YAML frontmatter
+- Local fallback mode (`.agent-memory/`) when Obsidian is not configured
+- `graph` command to build project knowledge docs from code, memory, and chat context
 
 ---
 
-### Quick Start
+## Installation
 
 ```bash
 pip install easy-agent-mem
+```
 
+---
+
+## Quick Start
+
+```bash
 agent-mem init
-agent-mem configure-groq          # optional but recommended
-agent-mem watch                   # start automatic handoff mode
+agent-mem configure-groq      # optional for enrich/watch handoff generation
+agent-mem watch               # start automatic handoff mode
 ```
 
-New in v0.5+:  
-`agent-mem graph build` -> creates a full knowledge graph in `agent-mem-output/`
+After initialization, use `agent-mem status` to verify storage mode, graph output readiness, and Groq configuration status.
 
 ---
 
-### New: Knowledge Graph (`agent-mem graph`)
+## Knowledge Graph (`agent-mem graph`)
+
+Generate Obsidian-native docs into `agent-mem-output/`:
 
 ```bash
-agent-mem graph build              # Basic deterministic graph
-agent-mem graph build --enrich     # Enrich with Groq (inferred relationships)
-agent-mem graph build --compact    # Compact mode for large projects
+agent-mem graph build
 ```
 
-**Output**: Clean Obsidian-ready Markdown files in `agent-mem-output/`  
-- `Index.md` - beautiful dashboard
-- Code structure, decisions, blockers, concepts, sessions
-- Clear `EXTRACTED` vs `INFERRED` labeling with confidence scores
-
-Open `agent-mem-output/Index.md` in Obsidian for full graph navigation and backlinks.
-
----
-
-### Commands Overview
-
-| Command                        | Description                                      |
-|-------------------------------|--------------------------------------------------|
-| `agent-mem init`              | Setup Obsidian / fallback + IDE rules            |
-| `agent-mem configure-groq`    | Set Groq API key                                 |
-| `agent-mem watch`             | Automatic one-paste handoff watcher              |
-| `agent-mem graph build`       | Build knowledge graph (new)                      |
-| `agent-mem summarize`         | Manual summary                                   |
-| `agent-mem recall <query>`    | Search memory                                    |
-
----
-
-### Project Links
-
-- PyPI: https://pypi.org/project/easy-agent-mem/
-- GitHub: https://github.com/atharvavdeo/agent-mem
-
----
-
-**Made for developers who want their AI agent to actually remember things.**
-
----
-
-**License**: MIT
-
----
-
-### How to Update README
-
-1. Open your `README.md`
-2. Replace the entire content with the text above
-3. Save and commit:
+Use optional flags:
 
 ```bash
-git add README.md
-git commit -m "docs: update README with badges and graph feature"
-git push
+agent-mem graph build --compact
+agent-mem graph build --enrich
+agent-mem graph build --compact --enrich
+agent-mem graph build --exclude-file-pattern "tests/*" --exclude-file-pattern "**/migrations/*.py"
 ```
+
+### Graph Flags
+
+| Flag | Description |
+| --- | --- |
+| `--compact` | Trims long concept/function lists and writes full lists to `agent-mem-output/Full/` |
+| `--enrich` | Adds inferred concepts/relationships via Groq when available |
+| `--exclude-file-pattern` | Excludes files by glob pattern; repeatable |
+
+### Generated Files
+
+- `Index.md`: dashboard and navigation entrypoint
+- `Code/*`: files, classes, functions, and imports
+- `Decisions/*`: extracted decision and blocker signals
+- `Sessions/recent-chats.md`: active and recent context snippets
+- `Concepts.md`: concept inventory with `EXTRACTED` / `INFERRED` labels
+- `Graph-Report.md`: plain-language summary of graph generation
+
+Open `agent-mem-output/Index.md` in Obsidian for full navigation and backlinks.
 
 ---
 
-### What Part Requires Improvement (Specific Feedback)
+## Daily Workflow
 
-**Current State (Good):**
-- Core graph building works
-- Compact mode and enrichment are implemented
-- Output is Obsidian-friendly
+```bash
+agent-mem watch
+agent-mem checkpoint --stdin
+agent-mem prepare-next
+agent-mem recall "current goal"
+agent-mem graph build --compact
+```
 
-**Areas that still need improvement (Priority order):**
+Use this flow to maintain continuity during active implementation and produce graph notes when you need a wider project snapshot.
 
-1. **Index.md is still a bit basic**  
-	-> Can be made more dashboard-like with better stats layout and visual separation.
+---
 
-2. **Error handling when Groq key is missing/invalid**  
-	-> Currently it fails silently or shows confusing messages. Should give clear user-friendly message.
+## Commands Overview
 
-3. **Documentation in README**  
-	-> The new `graph` command section is missing detailed examples and flags explanation.
+| Command | Description |
+| --- | --- |
+| `agent-mem init` | Configure storage mode and IDE instructions |
+| `agent-mem configure-groq` | Set Groq API key and model configuration |
+| `agent-mem watch` | Run automatic handoff watcher |
+| `agent-mem graph build` | Build knowledge graph notes |
+| `agent-mem summarize` | Save manual structured summary |
+| `agent-mem checkpoint` | Update compact active handoff context |
+| `agent-mem prepare-next` | Print starter block for a fresh chat |
+| `agent-mem recall <query>` | Search saved memory |
+| `agent-mem status` | Show storage, graph, and Groq configuration |
 
-4. **Performance on very large projects**  
-	-> Scanning thousands of files can be slow. Compact mode helps but can be optimized further.
+---
+
+## Storage Modes
+
+### Obsidian Mode
+
+If Obsidian is configured, notes are written under:
+
+- `Memory/Agent-Mem/` for session and active context notes
+- `agent-mem-output/` for graph notes
+
+### Local Fallback Mode
+
+If Obsidian is unavailable, memory is written to:
+
+- `.agent-memory/active.md`
+- `.agent-memory/memory.md`
+
+---
+
+## Troubleshooting
+
+- If `--enrich` does not apply inferred content, run `agent-mem status` and verify Groq key/model configuration.
+- If graph output is too large, use `--compact`.
+- For large repos, exclude low-value paths with repeatable `--exclude-file-pattern` options.
+
+---
+
+## Project Links
+
+- PyPI: [easy-agent-mem](https://pypi.org/project/easy-agent-mem/)
+- GitHub: [atharvavdeo/agent-mem](https://github.com/atharvavdeo/agent-mem)
+
+---
+
+## License
+
+MIT

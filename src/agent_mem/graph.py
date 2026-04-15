@@ -1130,41 +1130,25 @@ def _render_index(
     total_functions = sum(len(record.functions) for record in records)
     total_imports = sum(len(record.imports) for record in records)
     generated_at = _now().strftime("%Y-%m-%d %H:%M:%S %Z")
+    top_concepts = concepts[:10]
+    decision_status = "Healthy" if decisions else "No explicit decision signals"
+    blocker_status = "Attention needed" if blockers else "Healthy"
+    concept_status = "Healthy" if concepts else "Low coverage"
+    compact_status = "Enabled" if compact else "Disabled"
 
     lines: list[str] = [
         "# Agent-Mem Knowledge Graph Dashboard",
         "",
-        f"Knowledge dashboard for `{project_name}`.",
+        f"Executive control panel for `{project_name}` with code intelligence, memory signals, and action-ready navigation.",
         "",
-        f"Generated: {generated_at}",
-        f"Summary: {total_classes} Classes, {total_functions} Functions, {len(decisions)} Decisions found.",
-        f"Notes generated: {file_count_written}",
+        "> [!summary] Executive Snapshot",
+        f"> - Generated: {generated_at}",
+        f"> - Notes generated: {file_count_written}",
+        f"> - Engineering footprint: {len(records)} files, {total_classes} classes, {total_functions} functions",
+        f"> - Memory posture: {len(decisions)} decisions, {len(blockers)} blockers",
+        f"> - Compact mode: {compact_status}",
         "",
-        "## Table of Contents",
-        "",
-        "- [[Code/files]]",
-        "- [[Code/classes]]",
-        "- [[Code/functions]]",
-        "- [[Code/imports]]",
-        "- [[Decisions/key-decisions]]",
-        "- [[Decisions/open-blockers]]",
-        "- [[Sessions/recent-chats]]",
-        "- [[Concepts]]",
-        "- [[Graph-Report]]",
-        "",
-        "## Quick Navigation",
-        "",
-        "- [[Code/files]]",
-        "- [[Code/classes]]",
-        "- [[Code/functions]]",
-        "- [[Code/imports]]",
-        "- [[Decisions/key-decisions]]",
-        "- [[Decisions/open-blockers]]",
-        "- [[Sessions/recent-chats]]",
-        "- [[Concepts]]",
-        "- [[Graph-Report]]",
-        "",
-        "## Summary Statistics",
+        "## KPI Summary",
         "",
         "| Metric | Value |",
         "| --- | ---: |",
@@ -1175,27 +1159,73 @@ def _render_index(
         f"| Decisions | {len(decisions)} |",
         f"| Blockers | {len(blockers)} |",
         f"| Concepts | {len(concepts)} |",
-        f"| Compact Mode | {'yes' if compact else 'no'} |",
         "",
-        "## Top Concepts",
+        "## Operational Health",
         "",
-        "Top-ranked concepts extracted from code and memory artifacts.",
+        "| Domain | Status | Owner View |",
+        "| --- | --- | --- |",
+        f"| Decisions | {decision_status} | [[Decisions/key-decisions]] |",
+        f"| Blockers | {blocker_status} | [[Decisions/open-blockers]] |",
+        f"| Concepts | {concept_status} | [[Concepts]] |",
+        "| Graph Report | Ready | [[Graph-Report]] |",
         "",
+        "## Strategic Navigation",
+        "",
+        "### Engineering Assets",
+        "",
+        "- [[Code/files]]",
+        "- [[Code/classes]]",
+        "- [[Code/functions]]",
+        "- [[Code/imports]]",
+        "",
+        "### Decision Intelligence",
+        "",
+        "- [[Decisions/key-decisions]]",
+        "- [[Decisions/open-blockers]]",
+        "- [[Sessions/recent-chats]]",
+        "- [[Concepts]]",
+        "- [[Graph-Report]]",
+        "",
+        "## Priority Concepts",
+        "",
+        "Highest-signal concepts extracted from code and memory artifacts.",
+        "",
+        "| Rank | Concept | Score |",
+        "| ---: | --- | ---: |",
     ]
 
-    if concepts:
-        for term, score in concepts[:12]:
-            lines.append(f"- [[Concept - {term}]] (score: {score})")
+    if top_concepts:
+        for idx, (term, score) in enumerate(top_concepts, start=1):
+            lines.append(f"| {idx} | [[Concept - {term}]] | {score} |")
     else:
-        lines.append("- No concepts extracted yet.")
+        lines.append("| 1 | No concepts extracted yet | 0 |")
 
     lines.extend(
         [
             "",
-            "## Last Updated",
+            "## Executive Actions",
             "",
-            f"Last updated at {generated_at}.",
-            "Refresh this dashboard with `agent-mem graph build`.",
+        ]
+    )
+
+    if blockers:
+        lines.append("- Prioritize [[Decisions/open-blockers]] to reduce near-term delivery risk.")
+    else:
+        lines.append("- No active blocker signal detected. Continue against current implementation priorities.")
+
+    if not decisions:
+        lines.append("- Add explicit DECISION/RATIONALE notes in code or memory to strengthen traceability.")
+    else:
+        lines.append("- Keep [[Decisions/key-decisions]] current as architecture and tradeoffs evolve.")
+
+    lines.extend(
+        [
+            "- Rebuild this dashboard after substantial changes: `agent-mem graph build`.",
+            "",
+            "## Reporting Cadence",
+            "",
+            f"Last refresh: {generated_at}.",
+            "Refresh this dashboard with `agent-mem graph build` or `agent-mem graph build --compact`.",
         ]
     )
 
@@ -1380,6 +1410,110 @@ def build_graph(
             concepts = _merge_llm_concepts(concepts, concept_sources, concept_confidence, llm_concepts)
     elif is_obsidian_enabled():
         notes.append("Deterministic mode completed. Re-run with --enrich to add optional inferred relationships.")
+
+    concepts = sorted(concepts, key=lambda item: (item[1], item[0]), reverse=True)
+    concept_sources = {term: concept_sources.get(term, CONCEPT_SOURCE_EXTRACTED) for term, _ in concepts}
+
+    files_to_write = 10 + (2 if compact else 0)
+    body_index = _render_index(
+        project_name,
+        records,
+        deduped_decisions,
+        deduped_blockers,
+        concepts,
+        compact=compact,
+        file_count_written=files_to_write,
+    )
+    body_files = _render_files(records)
+    body_classes = _render_classes(records)
+    body_functions = _render_functions(records, compact=compact)
+    body_imports = _render_imports(records)
+    body_decisions = _render_decisions(deduped_decisions, all_comments, class_symbols, function_symbols)
+    body_blockers = _render_blockers(deduped_blockers, all_comments, class_symbols, function_symbols)
+    body_sessions = _render_recent_chats(chat_snippets)
+    body_concepts = _render_concepts(
+        concepts,
+        concept_sources,
+        concept_confidence,
+        llm_relationships,
+        enriched=enrichment_requested,
+        compact=compact,
+    )
+    body_report = _render_graph_report(
+        project_name,
+        records,
+        deduped_decisions,
+        deduped_blockers,
+        concepts,
+        concept_sources,
+        concept_confidence,
+        llm_relationships,
+        enrichment_requested=enrichment_requested,
+        enriched=enrichment_applied,
+        compact=compact,
+        notes=notes,
+    )
+
+    targets = {
+        output_dir / "Index.md": ("Index", "agent-mem-graph-index", body_index),
+        code_dir / "files.md": ("Code Files", "agent-mem-graph-code-files", body_files),
+        code_dir / "classes.md": ("Code Classes", "agent-mem-graph-code-classes", body_classes),
+        code_dir / "functions.md": ("Code Functions", "agent-mem-graph-code-functions", body_functions),
+        code_dir / "imports.md": ("Code Imports", "agent-mem-graph-code-imports", body_imports),
+        decisions_dir / "key-decisions.md": ("Key Decisions", "agent-mem-graph-decisions", body_decisions),
+        decisions_dir / "open-blockers.md": ("Open Blockers", "agent-mem-graph-blockers", body_blockers),
+        sessions_dir / "recent-chats.md": ("Recent Chats", "agent-mem-graph-recent-chats", body_sessions),
+        output_dir / "Concepts.md": ("Concepts", "agent-mem-graph-concepts", body_concepts),
+        output_dir / "Graph-Report.md": ("Graph Report", "agent-mem-graph-report", body_report),
+    }
+
+    if compact:
+        body_functions_full = _render_functions(
+            records,
+            compact=False,
+            full_list_note_path="agent-mem-output/Full/functions-full.md",
+        )
+        body_concepts_full = _render_concepts(
+            concepts,
+            concept_sources,
+            concept_confidence,
+            llm_relationships,
+            enriched=enrichment_requested,
+            compact=False,
+            full_list_note_path="agent-mem-output/Full/concepts-full.md",
+        )
+        targets[full_dir / "functions-full.md"] = (
+            "Functions Full",
+            "agent-mem-graph-functions-full",
+            body_functions_full,
+        )
+        targets[full_dir / "concepts-full.md"] = (
+            "Concepts Full",
+            "agent-mem-graph-concepts-full",
+            body_concepts_full,
+        )
+
+    files_written: list[str] = []
+    for path, (title, type_name, body) in targets.items():
+        _write_markdown(path, title, type_name, project_name, body)
+        files_written.append(str(path.relative_to(root)))
+
+    return BuildResult(
+        output_dir=output_dir,
+        files_written=files_written,
+        python_files_scanned=len(records),
+        classes_found=sum(len(record.classes) for record in records),
+        functions_found=sum(len(record.functions) for record in records),
+        imports_found=sum(len(record.imports) for record in records),
+        comments_found=len(all_comments),
+        decisions_found=len(deduped_decisions),
+        blockers_found=len(deduped_blockers),
+        concepts_found=len(concepts),
+        enrichment_requested=enrichment_requested,
+        enriched=enrichment_applied,
+        compact=compact,
+        notes=notes,
+    )
 
     concepts = sorted(concepts, key=lambda item: (item[1], item[0]), reverse=True)
     concept_sources = {term: concept_sources.get(term, CONCEPT_SOURCE_EXTRACTED) for term, _ in concepts}
