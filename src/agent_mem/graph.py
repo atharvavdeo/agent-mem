@@ -1014,6 +1014,16 @@ def _render_concepts(
             confidence_text = str(confidence) if confidence is not None else "n/a"
             lines.append(f"| [[Concept - {term}]] | {value} | {source} | {confidence_text} |")
 
+    lines.extend(
+        [
+            "",
+            "Confidence guide:",
+            "- `EXTRACTED` items are deterministic and show `n/a` confidence.",
+            "- `INFERRED` items include confidence from LLM enrichment.",
+            "",
+        ]
+    )
+
     lines.extend(["", "## Relationships", ""])
     lines.append(
         "- [[Relation - EXTRACTED]]: Deterministic structural links were extracted from AST, tagged comments, and saved memory artifacts."
@@ -1047,6 +1057,10 @@ def _render_graph_report(
     enrichment_requested: bool,
     enriched: bool,
     compact: bool,
+    source_breakdown: dict[str, int],
+    chat_snippet_count: int,
+    tagged_decision_count: int,
+    tagged_blocker_count: int,
     notes: list[str],
 ) -> str:
     class_count = sum(len(record.classes) for record in records)
@@ -1087,6 +1101,22 @@ def _render_graph_report(
         f"- Inferred relationships: {len(llm_relationships) if enriched else 0}",
         f"- Inferred relationship avg confidence: {round(sum(inferred_relationship_confidences) / len(inferred_relationship_confidences), 1) if inferred_relationship_confidences else 'n/a'}",
         "",
+        "## Source Breakdown",
+        "",
+        "| Source | Count |",
+        "| --- | ---: |",
+        f"| Python files parsed | {len(records)} |",
+        f"| Chat snippets captured | {chat_snippet_count} |",
+        f"| Tagged decision comments | {tagged_decision_count} |",
+        f"| Tagged blocker comments | {tagged_blocker_count} |",
+    ]
+
+    for source, count in sorted(source_breakdown.items()):
+        lines.append(f"| Memory source: {source} | {count} |")
+
+    lines.extend(
+        [
+            "",
         "## Label Definitions",
         "",
         "- `EXTRACTED`: Deterministic signal from code AST, imports, comments, and saved memory artifacts.",
@@ -1104,9 +1134,29 @@ def _render_graph_report(
         "- [[Sessions/recent-chats]]",
         "- [[Concepts]]",
         "",
-    ]
+            "## Suggestions",
+            "",
+        ]
+    )
+
+    if blockers:
+        lines.append("- Address [[Decisions/open-blockers]] first to reduce execution risk.")
+    else:
+        lines.append("- No active blocker signal detected; continue with implementation goals.")
+
+    if not decisions:
+        lines.append("- Add explicit `DECISION`/`RATIONALE` comments or memory notes to improve traceability.")
+    else:
+        lines.append("- Keep [[Decisions/key-decisions]] current as architecture evolves.")
+
+    if not enrichment_requested:
+        lines.append("- Run `agent-mem graph build --enrich` to include inferred concepts and relationships.")
+
+    if compact:
+        lines.append("- Compact mode was used; run without `--compact` for full in-file detail sections.")
 
     if notes:
+        lines.append("")
         lines.append("## Notes")
         lines.append("")
         for note in notes:
@@ -1140,6 +1190,7 @@ def _render_index(
         "# Agent-Mem Knowledge Graph Dashboard",
         "",
         f"Executive control panel for `{project_name}` with code intelligence, memory signals, and action-ready navigation.",
+        f"Generated at: {generated_at}",
         "",
         "> [!summary] Executive Snapshot",
         f"> - Generated: {generated_at}",
@@ -1159,6 +1210,23 @@ def _render_index(
         f"| Decisions | {len(decisions)} |",
         f"| Blockers | {len(blockers)} |",
         f"| Concepts | {len(concepts)} |",
+        "",
+        "## Table of Contents",
+        "",
+        "- [[Code/files]]",
+        "- [[Code/classes]]",
+        "- [[Code/functions]]",
+        "- [[Code/imports]]",
+        "- [[Decisions/key-decisions]]",
+        "- [[Decisions/open-blockers]]",
+        "- [[Sessions/recent-chats]]",
+        "- [[Concepts]]",
+        "- [[Graph-Report]]",
+        "",
+        "## Quick Navigation",
+        "",
+        "- [Open project root README](../README.md)",
+        "- Rebuild graph now: `agent-mem graph build --compact`",
         "",
         "## Operational Health",
         "",
@@ -1226,6 +1294,8 @@ def _render_index(
             "",
             f"Last refresh: {generated_at}.",
             "Refresh this dashboard with `agent-mem graph build` or `agent-mem graph build --compact`.",
+            "",
+            "Back to project root: [Open project root README](../README.md)",
         ]
     )
 
@@ -1341,6 +1411,10 @@ def build_graph(
     chat_sources = _collect_chat_sources(root, project_name)
     chat_snippets: list[ChatSnippet] = []
     memory_blobs: list[str] = []
+    source_breakdown: dict[str, int] = {}
+
+    for _, label in chat_sources:
+        source_breakdown[label] = source_breakdown.get(label, 0) + 1
 
     for source_path, label in chat_sources:
         text = _safe_read(source_path, limit=7000)
@@ -1373,6 +1447,9 @@ def build_graph(
             decision_items.append(comment.text)
         if comment.tag in BLOCKER_TAGS:
             blocker_items.append(comment.text)
+
+    tagged_decision_count = sum(1 for comment in all_comments if comment.tag in DECISION_TAGS)
+    tagged_blocker_count = sum(1 for comment in all_comments if comment.tag in BLOCKER_TAGS)
 
     def _dedupe(items: list[str], limit: int = 120) -> list[str]:
         seen: set[str] = set()
@@ -1451,110 +1528,10 @@ def build_graph(
         enrichment_requested=enrichment_requested,
         enriched=enrichment_applied,
         compact=compact,
-        notes=notes,
-    )
-
-    targets = {
-        output_dir / "Index.md": ("Index", "agent-mem-graph-index", body_index),
-        code_dir / "files.md": ("Code Files", "agent-mem-graph-code-files", body_files),
-        code_dir / "classes.md": ("Code Classes", "agent-mem-graph-code-classes", body_classes),
-        code_dir / "functions.md": ("Code Functions", "agent-mem-graph-code-functions", body_functions),
-        code_dir / "imports.md": ("Code Imports", "agent-mem-graph-code-imports", body_imports),
-        decisions_dir / "key-decisions.md": ("Key Decisions", "agent-mem-graph-decisions", body_decisions),
-        decisions_dir / "open-blockers.md": ("Open Blockers", "agent-mem-graph-blockers", body_blockers),
-        sessions_dir / "recent-chats.md": ("Recent Chats", "agent-mem-graph-recent-chats", body_sessions),
-        output_dir / "Concepts.md": ("Concepts", "agent-mem-graph-concepts", body_concepts),
-        output_dir / "Graph-Report.md": ("Graph Report", "agent-mem-graph-report", body_report),
-    }
-
-    if compact:
-        body_functions_full = _render_functions(
-            records,
-            compact=False,
-            full_list_note_path="agent-mem-output/Full/functions-full.md",
-        )
-        body_concepts_full = _render_concepts(
-            concepts,
-            concept_sources,
-            concept_confidence,
-            llm_relationships,
-            enriched=enrichment_requested,
-            compact=False,
-            full_list_note_path="agent-mem-output/Full/concepts-full.md",
-        )
-        targets[full_dir / "functions-full.md"] = (
-            "Functions Full",
-            "agent-mem-graph-functions-full",
-            body_functions_full,
-        )
-        targets[full_dir / "concepts-full.md"] = (
-            "Concepts Full",
-            "agent-mem-graph-concepts-full",
-            body_concepts_full,
-        )
-
-    files_written: list[str] = []
-    for path, (title, type_name, body) in targets.items():
-        _write_markdown(path, title, type_name, project_name, body)
-        files_written.append(str(path.relative_to(root)))
-
-    return BuildResult(
-        output_dir=output_dir,
-        files_written=files_written,
-        python_files_scanned=len(records),
-        classes_found=sum(len(record.classes) for record in records),
-        functions_found=sum(len(record.functions) for record in records),
-        imports_found=sum(len(record.imports) for record in records),
-        comments_found=len(all_comments),
-        decisions_found=len(deduped_decisions),
-        blockers_found=len(deduped_blockers),
-        concepts_found=len(concepts),
-        enrichment_requested=enrichment_requested,
-        enriched=enrichment_applied,
-        compact=compact,
-        notes=notes,
-    )
-
-    concepts = sorted(concepts, key=lambda item: (item[1], item[0]), reverse=True)
-    concept_sources = {term: concept_sources.get(term, CONCEPT_SOURCE_EXTRACTED) for term, _ in concepts}
-
-    files_to_write = 10 + (2 if compact else 0)
-    body_index = _render_index(
-        project_name,
-        records,
-        deduped_decisions,
-        deduped_blockers,
-        concepts,
-        compact=compact,
-        file_count_written=files_to_write,
-    )
-    body_files = _render_files(records)
-    body_classes = _render_classes(records)
-    body_functions = _render_functions(records, compact=compact)
-    body_imports = _render_imports(records)
-    body_decisions = _render_decisions(deduped_decisions, all_comments, class_symbols, function_symbols)
-    body_blockers = _render_blockers(deduped_blockers, all_comments, class_symbols, function_symbols)
-    body_sessions = _render_recent_chats(chat_snippets)
-    body_concepts = _render_concepts(
-        concepts,
-        concept_sources,
-        concept_confidence,
-        llm_relationships,
-        enriched=enrichment_requested,
-        compact=compact,
-    )
-    body_report = _render_graph_report(
-        project_name,
-        records,
-        deduped_decisions,
-        deduped_blockers,
-        concepts,
-        concept_sources,
-        concept_confidence,
-        llm_relationships,
-        enrichment_requested=enrichment_requested,
-        enriched=enrichment_applied,
-        compact=compact,
+        source_breakdown=source_breakdown,
+        chat_snippet_count=len(chat_snippets),
+        tagged_decision_count=tagged_decision_count,
+        tagged_blocker_count=tagged_blocker_count,
         notes=notes,
     )
 

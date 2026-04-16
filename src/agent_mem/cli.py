@@ -598,6 +598,7 @@ def _run_graph_build(
         raise typer.Exit(1)
 
     _echo(f"✅ Graph notes generated at: {result.output_dir}")
+    _echo(f"Open dashboard : {result.output_dir / 'Index.md'}")
     _echo(f"Files written   : {len(result.files_written)}")
     _echo(f"Python files    : {result.python_files_scanned}")
     _echo(f"Classes         : {result.classes_found}")

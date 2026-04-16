@@ -1,6 +1,6 @@
 [project]
 name = "easy-agent-mem"
-version = "0.6.1"
+version = "0.6.2"
 description = "CLI-first persistent memory for AI coding sessions with direct Obsidian note writing and local fallback storage."
 authors = [{ name = "Atharva", email = "atharva.v.deo@gmail.com" }]
 readme = "README.md"

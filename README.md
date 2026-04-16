@@ -90,9 +90,10 @@ agent-mem graph build --exclude-file-pattern "tests/*" --exclude-file-pattern "*
 - `Decisions/*`: extracted decision and blocker signals
 - `Sessions/recent-chats.md`: active and recent context snippets
 - `Concepts.md`: concept inventory with `EXTRACTED` / `INFERRED` labels
-- `Graph-Report.md`: plain-language summary of graph generation
+- `Graph-Report.md`: plain-language summary with source breakdown and action suggestions
 
 Open `agent-mem-output/Index.md` in Obsidian for full navigation and backlinks.
+The dashboard includes quick navigation links, operational health status, and a direct link back to project root docs.
 
 ---
 
