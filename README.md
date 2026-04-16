@@ -1,3 +1,5 @@
+# agent-mem
+
 ![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
 
 ![PyPI version](https://img.shields.io/pypi/v/easy-agent-mem)
@@ -8,8 +10,6 @@
 ![GitHub issues](https://img.shields.io/github/issues/atharvavdeo/agent-mem)
 ![PyPI downloads](https://img.shields.io/pypi/dm/easy-agent-mem)
 ![Last commit](https://img.shields.io/github/last-commit/atharvavdeo/agent-mem)
-
-# agent-mem
 
 Automatic context compression and persistent memory for AI coding agents.
 
@@ -30,9 +30,10 @@ Automatic context compression and persistent memory for AI coding agents.
 
 - Smart `watch` mode with file + git + idle detection
 - One-paste handoff prompts (Groq-powered, optional)
+- Cross-IDE context migration (`agent-mem migrate`) for Cursor, Claude (VS Code), and OpenCode
 - Obsidian-first storage with wiki-links and YAML frontmatter
 - Local fallback mode (`.agent-memory/`) when Obsidian is not configured
-- `graph` command to build project knowledge docs from code, memory, and chat context
+- `graph` command to build project knowledge docs from code + memory + chat context
 
 ---
 
@@ -49,6 +50,7 @@ pip install easy-agent-mem
 ```bash
 agent-mem init
 agent-mem configure-groq      # optional for enrich/watch handoff generation
+agent-mem migrate --dry-run cursor .
 agent-mem watch               # start automatic handoff mode
 ```
 
@@ -98,6 +100,7 @@ Open `agent-mem-output/Index.md` in Obsidian for full navigation and backlinks.
 
 ```bash
 agent-mem watch
+agent-mem migrate --extract-only cursor .
 agent-mem checkpoint --stdin
 agent-mem prepare-next
 agent-mem recall "current goal"
@@ -108,12 +111,73 @@ Use this flow to maintain continuity during active implementation and produce gr
 
 ---
 
+## Migration (`agent-mem migrate`)
+
+Bring context from other IDE chat stores into your current project memory.
+
+### What It Does
+
+- Extracts recognizable chat sessions from Cursor, Claude (VS Code), and OpenCode
+- Compresses extracted context into agent-mem structured summary format
+- In `--full` mode, saves summary to memory and generates a one-paste handoff prompt
+- Writes portable markdown backups under `.agent-memory/migrations/`
+- Supports safe simulation with `--dry-run`
+
+### Source Notes
+
+- `cursor`: best support on macOS and local `.cursor` storage
+- `claude`: scans `.claude`, `.vscode`, and VS Code workspace storage paths
+- `opencode`: scans local `.opencode` and common OpenCode config paths
+- `antigravity`: best-effort extraction only (depends on local transcript format)
+
+### Examples
+
+```bash
+agent-mem migrate
+agent-mem migrate cursor .
+agent-mem migrate --extract-only cursor claude .
+agent-mem migrate --full cursor claude .
+agent-mem migrate --dry-run cursor .
+agent-mem migrate --full cursor .
+agent-mem migrate --dry-run --full cursor claude opencode .
+```
+
+### Modes
+
+- `--extract-only`: extract + backup only (default for direct CLI usage)
+- `--full`: extract + save summary to memory + generate handoff + backup
+- `--dry-run`: no file writes, prints preview summary/handoff output
+
+### Recommended Workflow
+
+```bash
+# 1) Preview what will be extracted
+agent-mem migrate --dry-run cursor .
+
+# 2) Persist memory + handoff prompt for actual continuation
+agent-mem migrate --full cursor .
+
+# 3) Paste the generated handoff prompt into your active IDE chat
+#    and let the agent write a fresh structured summary.
+```
+
+### Output Artifacts
+
+- Memory summary:
+  - Obsidian mode: `Memory/Agent-Mem/<project>-<timestamp>-session.md`
+  - Fallback mode: `.agent-memory/memory.md`
+- Handoff outbox: `.agent-memory/outbox/latest-handoff.md`
+- Migration backup: `.agent-memory/migrations/<timestamp>-<sources>.md`
+
+---
+
 ## Commands Overview
 
 | Command | Description |
 | --- | --- |
 | `agent-mem init` | Configure storage mode and IDE instructions |
 | `agent-mem configure-groq` | Set Groq API key and model configuration |
+| `agent-mem migrate` | Extract IDE chat history and convert it into memory/handoff artifacts |
 | `agent-mem watch` | Run automatic handoff watcher |
 | `agent-mem graph build` | Build knowledge graph notes |
 | `agent-mem summarize` | Save manual structured summary |

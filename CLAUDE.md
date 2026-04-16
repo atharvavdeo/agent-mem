@@ -11,6 +11,7 @@ Mandatory behavior at session start:
 - Load memory before planning, coding, or answering historical questions.
 - Prefer saved memory over old chat history.
 - If the user pastes a watch-generated handoff prompt, execute that handoff before anything else.
+- If the user pastes a migration handoff prompt, execute it first, save a structured summary, then continue normal implementation.
 
 If MCP tools are available:
 
@@ -31,6 +32,7 @@ Mandatory summarization triggers:
 - multiple-file change
 - session handoff or stop point
 - a watch-generated handoff prompt pasted by the user
+- a migration handoff prompt pasted by the user
 
 Required summary contents:
 
