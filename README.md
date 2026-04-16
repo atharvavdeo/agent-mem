@@ -34,6 +34,10 @@ Automatic context compression and persistent memory for AI coding agents.
 - Obsidian-first storage with wiki-links and YAML frontmatter
 - Local fallback mode (`.agent-memory/`) when Obsidian is not configured
 - `graph` command to build project knowledge docs from code + memory + chat context
+- Graph dashboard summary cards with operational status and quick navigation
+- Friendly `--enrich` diagnostics when Groq setup is missing/invalid
+- Incremental graph parse cache for faster rebuilds on unchanged files
+- Progress output for large project scans
 
 ---
 
@@ -58,6 +62,55 @@ After initialization, use `agent-mem status` to verify storage mode, graph outpu
 
 ---
 
+## How To Use (Practical Flows)
+
+### 1) First-Time Setup
+
+```bash
+agent-mem init
+agent-mem status
+agent-mem setup-vscode            # optional if you want .vscode/mcp.json generated directly
+agent-mem configure-groq          # optional, enables watch handoff and graph enrich
+```
+
+### 2) Daily Memory Workflow
+
+```bash
+agent-mem checkpoint --stdin
+agent-mem prepare-next
+agent-mem recall "current goal"
+```
+
+### 3) Import Context From Other IDE Chats
+
+```bash
+agent-mem migrate --dry-run cursor .
+agent-mem migrate --full cursor claude .
+```
+
+### 4) Generate Project Knowledge Graph
+
+```bash
+agent-mem graph build --compact
+agent-mem graph build --compact --enrich
+```
+
+### 5) Automated Handoff Watcher
+
+```bash
+agent-mem watch --dry-run --once
+agent-mem watch
+```
+
+### 6) MCP / IDE Integration Helpers
+
+```bash
+agent-mem print-mcp-json
+agent-mem serve --force-stdio     # only for debugging MCP startup manually
+```
+
+---
+
 ## Knowledge Graph (`agent-mem graph`)
 
 Generate Obsidian-native docs into `agent-mem-output/`:
@@ -75,13 +128,39 @@ agent-mem graph build --compact --enrich
 agent-mem graph build --exclude-file-pattern "tests/*" --exclude-file-pattern "**/migrations/*.py"
 ```
 
+### Common Recipes
+
+```bash
+# Fast baseline build
+agent-mem graph build
+
+# Large repo first pass (trim output size)
+agent-mem graph build --compact
+
+# Large repo focused pass (skip low-value paths)
+agent-mem graph build --compact \
+  --exclude-file-pattern "tests/*" \
+  --exclude-file-pattern "**/migrations/*.py" \
+  --exclude-file-pattern "**/node_modules/*"
+
+# Semantic pass (requires Groq key)
+agent-mem graph build --enrich
+```
+
 ### Graph Flags
 
 | Flag | Description |
 | --- | --- |
-| `--compact` | Trims long concept/function lists and writes full lists to `agent-mem-output/Full/` |
-| `--enrich` | Adds inferred concepts/relationships via Groq when available |
-| `--exclude-file-pattern` | Excludes files by glob pattern; repeatable |
+| `--compact` | Trims long concept/function lists, keeps dashboard/report complete, and writes full lists to `agent-mem-output/Full/` |
+| `--enrich` | Adds inferred concepts/relationships via Groq; deterministic graph output is still generated if enrichment fails |
+| `--exclude-file-pattern` | Excludes files by glob pattern; repeatable and useful for tests/generated/vendor paths |
+
+Flag behavior details:
+
+- `--compact` is ideal for very large repos where full notes are noisy.
+- `--enrich` does not block graph generation; if Groq is unavailable you still get deterministic notes plus actionable diagnostics.
+- Multiple `--exclude-file-pattern` values are combined.
+- Patterns match both full relative paths and file names.
 
 ### Generated Files
 
@@ -94,6 +173,26 @@ agent-mem graph build --exclude-file-pattern "tests/*" --exclude-file-pattern "*
 
 Open `agent-mem-output/Index.md` in Obsidian for full navigation and backlinks.
 The dashboard includes quick navigation links, operational health status, and a direct link back to project root docs.
+
+### Enrich Troubleshooting
+
+If `--enrich` is requested but no inferred output is added, the CLI now prints actionable guidance.
+
+Typical causes and fixes:
+
+- Missing key: run `agent-mem configure-groq` or export `GROQ_API_KEY`.
+- Invalid key/auth failure: reconfigure key and run `agent-mem status`.
+- Missing client package: install `groq` (`pip install groq`).
+- Rate limited: retry after a short delay.
+
+### Large Project Performance
+
+Graph builds now provide progress updates and incremental parse caching:
+
+- Progress lines show scan stage and running cache-hit/reparse counts.
+- Parsed-file cache is stored at `agent-mem-output/.graph-cache.json`.
+- Unchanged Python files are reused from cache on subsequent runs.
+- Use `--compact` and `--exclude-file-pattern` together for best large-repo responsiveness.
 
 ---
 
@@ -174,18 +273,50 @@ agent-mem migrate --full cursor .
 
 ## Commands Overview
 
-| Command | Description |
-| --- | --- |
-| `agent-mem init` | Configure storage mode and IDE instructions |
-| `agent-mem configure-groq` | Set Groq API key and model configuration |
-| `agent-mem migrate` | Extract IDE chat history and convert it into memory/handoff artifacts |
-| `agent-mem watch` | Run automatic handoff watcher |
-| `agent-mem graph build` | Build knowledge graph notes |
-| `agent-mem summarize` | Save manual structured summary |
-| `agent-mem checkpoint` | Update compact active handoff context |
-| `agent-mem prepare-next` | Print starter block for a fresh chat |
-| `agent-mem recall <query>` | Search saved memory |
-| `agent-mem status` | Show storage, graph, and Groq configuration |
+### Setup and Configuration
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `agent-mem init` | Interactive first-time setup for storage + IDE instruction files + MCP config hints | `agent-mem init` |
+| `agent-mem setup` | Re-run instruction + MCP config setup for current project | `agent-mem setup` |
+| `agent-mem setup-vscode` | Write `.vscode/mcp.json` with detected/selected Python interpreter | `agent-mem setup-vscode --python /path/to/python3` |
+| `agent-mem print-mcp-json` | Print MCP JSON block for manual paste into IDE config | `agent-mem print-mcp-json` |
+| `agent-mem configure-groq` | Save Groq API key and optional model | `agent-mem configure-groq --model llama-3.3-70b-versatile` |
+| `agent-mem status` | Show storage mode, graph readiness, and Groq status | `agent-mem status` |
+
+### Memory and Continuity
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `agent-mem summarize` | Save a structured session summary into memory | `agent-mem summarize --summary-file summary.md` |
+| `agent-mem checkpoint` | Update compact active handoff context file | `agent-mem checkpoint --stdin` |
+| `agent-mem prepare-next` | Print starter block for a fresh follow-up chat | `agent-mem prepare-next` |
+| `agent-mem recall <query>` | Search saved memory for relevant context | `agent-mem recall "current blockers"` |
+
+### Migration
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `agent-mem migrate` | Extract and convert IDE chat history into summaries/handoff/backups | `agent-mem migrate --full cursor claude .` |
+
+### Graph
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `agent-mem graph build` | Generate knowledge graph notes and dashboard | `agent-mem graph build --compact --exclude-file-pattern "tests/*"` |
+
+### Watch Mode and Handoff Automation
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `agent-mem watch` | Monitor repo activity and generate handoff prompts automatically | `agent-mem watch --once --dry-run` |
+| `agent-mem test-watch` | Trigger one immediate handoff generation without waiting for file events | `agent-mem test-watch --dry-run` |
+
+### MCP Server
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `agent-mem serve` | Start MCP stdio server (normally launched by IDE, not by hand) | `agent-mem serve --force-stdio` |
 
 ---
 

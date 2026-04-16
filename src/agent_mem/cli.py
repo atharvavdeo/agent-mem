@@ -592,6 +592,7 @@ def _run_graph_build(
             enrich=enrich,
             exclude_file_patterns=exclude_file_patterns or [],
             compact=compact,
+            progress_callback=lambda message: _echo(f"  {message}"),
         )
     except Exception as exc:
         _echo(f"❌ Graph build failed: {exc}", err=True)
@@ -611,6 +612,13 @@ def _run_graph_build(
     _echo(f"LLM requested   : {'yes' if result.enrichment_requested else 'no'}")
     _echo(f"LLM enriched    : {'yes' if result.enriched else 'no'}")
     _echo(f"Compact mode    : {'yes' if result.compact else 'no'}")
+    _echo(f"Cache hits      : {result.cache_hits}")
+    _echo(f"Files reparsed  : {result.cache_misses}")
+    _echo(f"Duration (sec)  : {result.duration_seconds:.2f}")
+    if enrich and not result.enriched:
+        _echo("⚠️ Enrich was requested, but no inferred data was added.")
+        _echo("   Check Groq configuration with: agent-mem status")
+        _echo("   Set/fix key with: agent-mem configure-groq")
     if result.notes:
         _echo("Notes:")
         for note in result.notes:

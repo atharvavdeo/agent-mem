@@ -1,14 +1,16 @@
 from __future__ import annotations
 
 import ast
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 import fnmatch
 import io
+import json
 from pathlib import Path
 import re
+import time
 import tokenize
-from typing import Any
+from typing import Any, Callable
 
 from .config import get_config, get_groq_api_key
 from .memory import (
@@ -20,6 +22,9 @@ from .memory import (
 )
 
 OUTPUT_DIR_NAME = "agent-mem-output"
+GRAPH_CACHE_FILE = ".graph-cache.json"
+GRAPH_CACHE_VERSION = 1
+PROGRESS_EVERY_FILES = 25
 COMPACT_FUNCTION_LIMIT = 60
 COMPACT_CONCEPT_LIMIT = 24
 COMPACT_FUNCTION_DETAIL_LIMIT = 24
@@ -156,6 +161,9 @@ class BuildResult:
     enriched: bool
     compact: bool
     notes: list[str] = field(default_factory=list)
+    cache_hits: int = 0
+    cache_misses: int = 0
+    duration_seconds: float = 0.0
 
 
 def _now() -> datetime:
@@ -226,6 +234,11 @@ def _ensure_parent(path: Path) -> None:
 def _write_markdown(path: Path, title: str, type_name: str, project_name: str, body: str) -> None:
     _ensure_parent(path)
     path.write_text(_frontmatter(title, type_name, project_name) + body.rstrip() + "\n", encoding="utf-8")
+
+
+def _emit_progress(progress_callback: Callable[[str], None] | None, message: str) -> None:
+    if progress_callback:
+        progress_callback(message)
 
 
 def _path_has_ignored_part(path: Path) -> bool:
@@ -418,6 +431,76 @@ def _parse_python_file(path: Path, project_root: Path) -> FileRecord:
         functions=collector.functions,
         comments=_extract_comments(source, relative_path),
     )
+
+
+def _file_record_to_dict(record: FileRecord) -> dict[str, Any]:
+    return asdict(record)
+
+
+def _file_record_from_dict(payload: dict[str, Any]) -> FileRecord:
+    imports = [ImportRecord(**item) for item in payload.get("imports", [])]
+
+    classes: list[ClassRecord] = []
+    for class_item in payload.get("classes", []):
+        methods = [MethodRecord(**method_item) for method_item in class_item.get("methods", [])]
+        classes.append(
+            ClassRecord(
+                name=class_item.get("name", ""),
+                qualified_name=class_item.get("qualified_name", ""),
+                file_path=class_item.get("file_path", ""),
+                line=class_item.get("line", 0),
+                docstring=class_item.get("docstring", ""),
+                methods=methods,
+            )
+        )
+
+    functions = [FunctionRecord(**item) for item in payload.get("functions", [])]
+    comments = [CommentRecord(**item) for item in payload.get("comments", [])]
+
+    return FileRecord(
+        file_path=payload.get("file_path", ""),
+        module_docstring=payload.get("module_docstring", ""),
+        imports=imports,
+        classes=classes,
+        functions=functions,
+        comments=comments,
+    )
+
+
+def _load_graph_cache(path: Path) -> dict[str, Any]:
+    default_payload = {"version": GRAPH_CACHE_VERSION, "files": {}}
+    if not path.exists():
+        return default_payload
+
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return default_payload
+
+    if not isinstance(loaded, dict):
+        return default_payload
+    if loaded.get("version") != GRAPH_CACHE_VERSION:
+        return default_payload
+
+    files = loaded.get("files", {})
+    if not isinstance(files, dict):
+        files = {}
+
+    return {"version": GRAPH_CACHE_VERSION, "files": files}
+
+
+def _save_graph_cache(path: Path, files_payload: dict[str, Any]) -> None:
+    _ensure_parent(path)
+    content = json.dumps(
+        {
+            "version": GRAPH_CACHE_VERSION,
+            "files": files_payload,
+        },
+        ensure_ascii=True,
+        indent=2,
+        sort_keys=True,
+    )
+    path.write_text(content + "\n", encoding="utf-8")
 
 
 def _extract_section_items(text: str, headings: tuple[str, ...]) -> list[str]:
@@ -1061,6 +1144,9 @@ def _render_graph_report(
     chat_snippet_count: int,
     tagged_decision_count: int,
     tagged_blocker_count: int,
+    cache_hits: int,
+    cache_misses: int,
+    duration_seconds: float,
     notes: list[str],
 ) -> str:
     class_count = sum(len(record.classes) for record in records)
@@ -1091,6 +1177,9 @@ def _render_graph_report(
         f"- Tagged comments found: {comment_count}",
         f"- Decision signals: {len(decisions)}",
         f"- Blocker signals: {len(blockers)}",
+        f"- Cache hits: {cache_hits}",
+        f"- Files reparsed: {cache_misses}",
+        f"- Build duration: {duration_seconds:.2f}s",
         f"- Top concepts: {top_concepts}",
         f"- LLM enrichment requested: {'yes' if enrichment_requested else 'no'}",
         f"- LLM enrichment applied: {'yes' if enriched else 'no'}",
@@ -1185,6 +1274,8 @@ def _render_index(
     blocker_status = "Attention needed" if blockers else "Healthy"
     concept_status = "Healthy" if concepts else "Low coverage"
     compact_status = "Enabled" if compact else "Disabled"
+    decision_card = "[!success] Decision Signal" if decisions else "[!warning] Decision Signal"
+    blocker_card = "[!warning] Blocker Signal" if blockers else "[!success] Blocker Signal"
 
     lines: list[str] = [
         "# Agent-Mem Knowledge Graph Dashboard",
@@ -1198,6 +1289,22 @@ def _render_index(
         f"> - Engineering footprint: {len(records)} files, {total_classes} classes, {total_functions} functions",
         f"> - Memory posture: {len(decisions)} decisions, {len(blockers)} blockers",
         f"> - Compact mode: {compact_status}",
+        "",
+        "## Summary Cards",
+        "",
+        "> [!info] Code Footprint",
+        f"> - Python files: {len(records)}",
+        f"> - Classes: {total_classes}",
+        f"> - Functions: {total_functions}",
+        f"> - Imports: {total_imports}",
+        "",
+        f"> {decision_card}",
+        f"> - Signals captured: {len(decisions)}",
+        "> - Owner view: [[Decisions/key-decisions]]",
+        "",
+        f"> {blocker_card}",
+        f"> - Signals captured: {len(blockers)}",
+        "> - Owner view: [[Decisions/open-blockers]]",
         "",
         "## KPI Summary",
         "",
@@ -1309,12 +1416,24 @@ def _enrich_with_groq(
 ) -> tuple[list[tuple[str, int]], list[tuple[str, int]], list[str]]:
     api_key = get_groq_api_key()
     if not api_key:
-        return [], [], ["LLM enrichment skipped because GROQ_API_KEY is not configured."]
+        return (
+            [],
+            [],
+            [
+                "LLM enrichment skipped: GROQ_API_KEY is missing. Run 'agent-mem configure-groq' or set GROQ_API_KEY in your environment."
+            ],
+        )
 
     try:
         from groq import Groq
     except Exception:
-        return [], [], ["LLM enrichment skipped because the Groq client is not available."]
+        return (
+            [],
+            [],
+            [
+                "LLM enrichment skipped: Groq client is not installed. Install with 'pip install groq' and retry --enrich."
+            ],
+        )
 
     model = get_config().get("groq_model") or "llama-3.3-70b-versatile"
     client = Groq(api_key=api_key)
@@ -1353,7 +1472,21 @@ def _enrich_with_groq(
             ],
         )
     except Exception as exc:
-        return [], [], [f"LLM enrichment skipped after Groq error: {exc}"]
+        error_text = _clean_line(str(exc)).lower()
+        if any(token in error_text for token in ("401", "unauthorized", "authentication", "api key", "forbidden")):
+            return (
+                [],
+                [],
+                [
+                    "LLM enrichment skipped: Groq authentication failed. Re-run 'agent-mem configure-groq' with a valid key, then run 'agent-mem status'."
+                ],
+            )
+        if "429" in error_text or "rate" in error_text:
+            return [], [], ["LLM enrichment skipped: Groq rate limit reached. Retry in a few minutes."]
+        if "model" in error_text and "not" in error_text:
+            return [], [], ["LLM enrichment skipped: configured Groq model was not found. Update it with 'agent-mem configure-groq'."]
+
+        return [], [], [f"LLM enrichment skipped after Groq error: {_shorten(str(exc), 240)}"]
 
     content = (completion.choices[0].message.content or "").strip()
     parsed_concepts = _parse_inferred_items(_extract_section_items(content, ("Concepts",)), default_confidence=70)
@@ -1372,7 +1505,9 @@ def build_graph(
     enrich: bool = False,
     exclude_file_patterns: list[str] | None = None,
     compact: bool = False,
+    progress_callback: Callable[[str], None] | None = None,
 ) -> BuildResult:
+    started_at = time.perf_counter()
     root = (project_root or Path.cwd()).resolve()
     project_name = _project_name(root)
     normalized_excludes = [pattern.strip() for pattern in (exclude_file_patterns or []) if pattern.strip()]
@@ -1389,18 +1524,70 @@ def build_graph(
     if compact:
         full_dir.mkdir(parents=True, exist_ok=True)
 
+    _emit_progress(progress_callback, f"Scanning Python sources under {root.name}...")
     python_files = _collect_python_files(root, exclude_patterns=normalized_excludes)
+    _emit_progress(progress_callback, f"Discovered {len(python_files)} Python files.")
+
+    cache_path = output_dir / GRAPH_CACHE_FILE
+    cache_payload = _load_graph_cache(cache_path)
+    cached_file_entries = cache_payload.get("files", {})
+    updated_cache_entries: dict[str, Any] = {}
+
     records: list[FileRecord] = []
     notes: list[str] = []
+    cache_hits = 0
+    cache_misses = 0
 
     if normalized_excludes:
         notes.append("Excluded file patterns: " + ", ".join(normalized_excludes))
 
-    for path in python_files:
+    for idx, path in enumerate(python_files, start=1):
+        relative_path = str(path.relative_to(root))
+        stat = path.stat()
+        cached_entry = cached_file_entries.get(relative_path)
+        used_cache = False
+
+        if isinstance(cached_entry, dict):
+            same_mtime = cached_entry.get("mtime_ns") == stat.st_mtime_ns
+            same_size = cached_entry.get("size") == stat.st_size
+            cached_record_payload = cached_entry.get("record")
+            if same_mtime and same_size and isinstance(cached_record_payload, dict):
+                try:
+                    records.append(_file_record_from_dict(cached_record_payload))
+                    updated_cache_entries[relative_path] = cached_entry
+                    cache_hits += 1
+                    used_cache = True
+                except Exception:
+                    used_cache = False
+
+        if used_cache:
+            if idx == len(python_files) or idx % PROGRESS_EVERY_FILES == 0:
+                _emit_progress(
+                    progress_callback,
+                    f"Processed {idx}/{len(python_files)} files (cache hits: {cache_hits}, reparsed: {cache_misses}).",
+                )
+            continue
+
         try:
-            records.append(_parse_python_file(path, root))
+            parsed_record = _parse_python_file(path, root)
+            records.append(parsed_record)
+            updated_cache_entries[relative_path] = {
+                "mtime_ns": stat.st_mtime_ns,
+                "size": stat.st_size,
+                "record": _file_record_to_dict(parsed_record),
+            }
+            cache_misses += 1
         except SyntaxError as exc:
             notes.append(f"Skipped {path.relative_to(root)} due to syntax error: {exc}")
+
+        if idx == len(python_files) or idx % PROGRESS_EVERY_FILES == 0:
+            _emit_progress(
+                progress_callback,
+                f"Processed {idx}/{len(python_files)} files (cache hits: {cache_hits}, reparsed: {cache_misses}).",
+            )
+
+    _save_graph_cache(cache_path, updated_cache_entries)
+    notes.append(f"Graph cache reused {cache_hits} files and reparsed {cache_misses} files.")
 
     all_comments: list[CommentRecord] = [
         comment
@@ -1409,6 +1596,7 @@ def build_graph(
     ]
 
     chat_sources = _collect_chat_sources(root, project_name)
+    _emit_progress(progress_callback, "Collecting memory and session context...")
     chat_snippets: list[ChatSnippet] = []
     memory_blobs: list[str] = []
     source_breakdown: dict[str, int] = {}
@@ -1470,6 +1658,7 @@ def build_graph(
     deduped_decisions = _dedupe(decision_items, limit=120)
     deduped_blockers = _dedupe(blocker_items, limit=120)
     class_symbols, function_symbols = _build_symbol_catalog(records)
+    _emit_progress(progress_callback, "Extracting concepts and generating notes...")
 
     concepts = _collect_concepts(records, memory_blobs, deduped_decisions, deduped_blockers)
     concept_sources: dict[str, str] = {term: CONCEPT_SOURCE_EXTRACTED for term, _ in concepts}
@@ -1532,6 +1721,9 @@ def build_graph(
         chat_snippet_count=len(chat_snippets),
         tagged_decision_count=tagged_decision_count,
         tagged_blocker_count=tagged_blocker_count,
+        cache_hits=cache_hits,
+        cache_misses=cache_misses,
+        duration_seconds=(time.perf_counter() - started_at),
         notes=notes,
     )
 
@@ -1579,6 +1771,10 @@ def build_graph(
         _write_markdown(path, title, type_name, project_name, body)
         files_written.append(str(path.relative_to(root)))
 
+    duration_seconds = time.perf_counter() - started_at
+    notes.append(f"Graph build completed in {duration_seconds:.2f}s.")
+    _emit_progress(progress_callback, f"Graph build complete in {duration_seconds:.2f}s.")
+
     return BuildResult(
         output_dir=output_dir,
         files_written=files_written,
@@ -1594,4 +1790,7 @@ def build_graph(
         enriched=enrichment_applied,
         compact=compact,
         notes=notes,
+        cache_hits=cache_hits,
+        cache_misses=cache_misses,
+        duration_seconds=duration_seconds,
     )
