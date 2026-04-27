@@ -13,6 +13,7 @@ import tokenize
 from typing import Any, Callable
 
 from .config import get_config, get_groq_api_key
+from . import lang_parsers
 from .memory import (
     get_active_context_file,
     get_fallback_memory_file,
@@ -128,6 +129,14 @@ class CommentRecord:
 
 
 @dataclass
+class CallRecord:
+    caller: str          # qualified name of calling function/method
+    callee: str          # name of called function (as written in source)
+    file_path: str
+    line: int
+
+
+@dataclass
 class FileRecord:
     file_path: str
     module_docstring: str
@@ -135,6 +144,7 @@ class FileRecord:
     classes: list[ClassRecord] = field(default_factory=list)
     functions: list[FunctionRecord] = field(default_factory=list)
     comments: list[CommentRecord] = field(default_factory=list)
+    calls: list[CallRecord] = field(default_factory=list)
 
 
 @dataclass
@@ -164,6 +174,8 @@ class BuildResult:
     cache_hits: int = 0
     cache_misses: int = 0
     duration_seconds: float = 0.0
+    calls_found: int = 0
+    lang_files_scanned: int = 0
 
 
 def _now() -> datetime:
@@ -271,6 +283,35 @@ def _collect_python_files(project_root: Path, exclude_patterns: list[str] | None
     return sorted(files)
 
 
+def _collect_lang_files(project_root: Path, exclude_patterns: list[str] | None = None) -> list[Path]:
+    if not lang_parsers.is_available():
+        return []
+    patterns = exclude_patterns or []
+    files: list[Path] = []
+    for ext in lang_parsers.SUPPORTED_EXTENSIONS:
+        for path in project_root.rglob(f"*{ext}"):
+            relative = path.relative_to(project_root)
+            if _path_has_ignored_part(relative):
+                continue
+            if _matches_exclude_pattern(relative, patterns):
+                continue
+            files.append(path)
+    return sorted(set(files))
+
+
+def _render_lang_files(results: list) -> str:
+    if not results:
+        return ""
+    lines = [
+        "## Multi-Language Files\n",
+        "| File | Language | Classes | Functions | Imports |",
+        "|------|----------|---------|-----------|---------|",
+    ]
+    for r in results:
+        lines.append(f"| {r.file_path} | {r.language} | {len(r.classes)} | {len(r.functions)} | {len(r.imports)} |")
+    return "\n".join(lines) + "\n"
+
+
 def _format_args(node: ast.arguments) -> str:
     parts: list[str] = []
 
@@ -327,7 +368,9 @@ class _PythonStructureCollector(ast.NodeVisitor):
         self.imports: list[ImportRecord] = []
         self.classes: list[ClassRecord] = []
         self.functions: list[FunctionRecord] = []
+        self.calls: list[CallRecord] = []
         self._class_stack: list[str] = []
+        self._current_function: str | None = None
 
     def visit_Import(self, node: ast.Import) -> Any:
         for alias in node.names:
@@ -408,10 +451,38 @@ class _PythonStructureCollector(ast.NodeVisitor):
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> Any:
         self._record_function(node)
+        owner = ".".join(self._class_stack) if self._class_stack else None
+        prev = self._current_function
+        self._current_function = f"{owner}.{node.name}" if owner else node.name
         self.generic_visit(node)
+        self._current_function = prev
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> Any:
         self._record_function(node)
+        owner = ".".join(self._class_stack) if self._class_stack else None
+        prev = self._current_function
+        self._current_function = f"{owner}.{node.name}" if owner else node.name
+        self.generic_visit(node)
+        self._current_function = prev
+
+    def visit_Call(self, node: ast.Call) -> Any:
+        if self._current_function is None:
+            self.generic_visit(node)
+            return
+        # Extract callee name
+        if isinstance(node.func, ast.Name):
+            callee = node.func.id
+        elif isinstance(node.func, ast.Attribute):
+            callee = node.func.attr
+        else:
+            self.generic_visit(node)
+            return
+        self.calls.append(CallRecord(
+            caller=self._current_function,
+            callee=callee,
+            file_path=self.file_path,
+            line=node.lineno,
+        ))
         self.generic_visit(node)
 
 
@@ -430,6 +501,7 @@ def _parse_python_file(path: Path, project_root: Path) -> FileRecord:
         classes=collector.classes,
         functions=collector.functions,
         comments=_extract_comments(source, relative_path),
+        calls=collector.calls,
     )
 
 
@@ -456,6 +528,7 @@ def _file_record_from_dict(payload: dict[str, Any]) -> FileRecord:
 
     functions = [FunctionRecord(**item) for item in payload.get("functions", [])]
     comments = [CommentRecord(**item) for item in payload.get("comments", [])]
+    calls = [CallRecord(**item) for item in payload.get("calls", [])]
 
     return FileRecord(
         file_path=payload.get("file_path", ""),
@@ -464,6 +537,7 @@ def _file_record_from_dict(payload: dict[str, Any]) -> FileRecord:
         classes=classes,
         functions=functions,
         comments=comments,
+        calls=calls,
     )
 
 
@@ -1128,6 +1202,21 @@ def _render_concepts(
     return "\n".join(lines)
 
 
+def _render_call_graph(files: list[FileRecord], limit: int = 30) -> str:
+    """Render a compact call graph showing top callers."""
+    from collections import Counter
+    all_calls = [c for f in files for c in f.calls]
+    if not all_calls:
+        return ""
+    # Count calls per caller
+    caller_counts = Counter(c.caller for c in all_calls)
+    lines = ["## Call Graph (top callers)\n"]
+    for caller, count in caller_counts.most_common(limit):
+        callees = list(dict.fromkeys(c.callee for c in all_calls if c.caller == caller))[:8]
+        lines.append(f"- **{caller}** ({count} calls) → {', '.join(callees)}")
+    return "\n".join(lines) + "\n"
+
+
 def _render_graph_report(
     project_name: str,
     records: list[FileRecord],
@@ -1705,6 +1794,10 @@ def build_graph(
         enriched=enrichment_requested,
         compact=compact,
     )
+    call_graph_section = _render_call_graph(records)
+    lang_file_list = _collect_lang_files(root, exclude_patterns=normalized_excludes)
+    lang_results = [r for lf in lang_file_list if (r := lang_parsers.parse_file(lf, root)) is not None]
+    lang_files_section = _render_lang_files(lang_results)
     body_report = _render_graph_report(
         project_name,
         records,
@@ -1727,6 +1820,11 @@ def build_graph(
         notes=notes,
     )
 
+    full_report_body = (
+        body_report
+        + ("\n\n" + call_graph_section if call_graph_section else "")
+        + ("\n\n" + lang_files_section if lang_files_section else "")
+    )
     targets = {
         output_dir / "Index.md": ("Index", "agent-mem-graph-index", body_index),
         code_dir / "files.md": ("Code Files", "agent-mem-graph-code-files", body_files),
@@ -1737,7 +1835,7 @@ def build_graph(
         decisions_dir / "open-blockers.md": ("Open Blockers", "agent-mem-graph-blockers", body_blockers),
         sessions_dir / "recent-chats.md": ("Recent Chats", "agent-mem-graph-recent-chats", body_sessions),
         output_dir / "Concepts.md": ("Concepts", "agent-mem-graph-concepts", body_concepts),
-        output_dir / "Graph-Report.md": ("Graph Report", "agent-mem-graph-report", body_report),
+        output_dir / "Graph-Report.md": ("Graph Report", "agent-mem-graph-report", full_report_body),
     }
 
     if compact:
@@ -1793,4 +1891,6 @@ def build_graph(
         cache_hits=cache_hits,
         cache_misses=cache_misses,
         duration_seconds=duration_seconds,
+        calls_found=sum(len(record.calls) for record in records),
+        lang_files_scanned=len(lang_file_list),
     )

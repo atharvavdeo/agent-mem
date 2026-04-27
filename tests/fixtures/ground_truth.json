@@ -1,0 +1,42 @@
+{
+  "sample_module.py": {
+    "classes": [
+      {"name": "DataProcessor", "method_count": 5},
+      {"name": "ConfigManager", "method_count": 4}
+    ],
+    "functions": [
+      {"name": "standalone_helper", "is_async": false},
+      {"name": "compute", "is_async": false},
+      {"name": "async_fetch", "is_async": true},
+      {"name": "_async_read", "is_async": true}
+    ],
+    "imports": [
+      {"module": "os"},
+      {"module": "sys"},
+      {"module": "pathlib", "imported": "Path"},
+      {"module": "typing", "imported": "Optional"}
+    ],
+    "comments": [
+      {"tag": "NOTE", "line": 22},
+      {"tag": "TODO", "line": 50}
+    ],
+    "calls": [
+      {"caller": "DataProcessor.load", "callee": "_read_file"},
+      {"caller": "DataProcessor._read_file", "callee": "exists"},
+      {"caller": "DataProcessor.process", "callee": "list"},
+      {"caller": "DataProcessor.process", "callee": "items"},
+      {"caller": "DataProcessor.process", "callee": "_filter"},
+      {"caller": "ConfigManager.load_from_path", "callee": "_parse"},
+      {"caller": "ConfigManager.load_from_path", "callee": "str"},
+      {"caller": "ConfigManager.load_from_path", "callee": "update"},
+      {"caller": "ConfigManager.get", "callee": "get"},
+      {"caller": "standalone_helper", "callee": "compute"},
+      {"caller": "async_fetch", "callee": "_async_read"}
+    ]
+  },
+  "sample.ts": {
+    "classes": ["DataService", "ConfigLoader"],
+    "functions": ["bootstrap", "resolveConfigPath", "helper"],
+    "imports": ["events", "fs", "path"]
+  }
+}

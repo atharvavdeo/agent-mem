@@ -1,6 +1,6 @@
 [project]
 name = "easy-agent-mem"
-version = "0.6.3"
+version = "0.7.0"
 description = "CLI-first persistent memory for AI coding sessions with direct Obsidian note writing and local fallback storage."
 authors = [{ name = "Atharva", email = "atharva.v.deo@gmail.com" }]
 readme = "README.md"
@@ -28,6 +28,12 @@ Issues = "https://github.com/atharvavdeo/agent-mem/issues"
 
 [project.optional-dependencies]
 mcp = ["mcp>=0.3"]
+tui = ["textual>=0.60"]
+multilang = [
+    "tree-sitter>=0.22",
+    "tree-sitter-typescript>=0.22",
+    "tree-sitter-javascript>=0.22",
+]
 
 [project.scripts]
 agent-mem = "agent_mem.cli:app"

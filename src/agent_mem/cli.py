@@ -1,14 +1,20 @@
 from pathlib import Path
+import ast
 import json
 import shutil
 import sys
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 import click
 import typer
 
 from .config import CONFIG_FILE, get_config, get_groq_api_key, save_config
-from .graph import build_graph
+from .graph import (
+    CallRecord,
+    build_graph,
+    _PythonStructureCollector,
+    _extract_comments,
+)
 from .memory import (
     get_active_context_file,
     get_fallback_memory_file,
@@ -211,10 +217,68 @@ Do not:
 """
 
 
+def _agent_mem_hook_script() -> str:
+    return """#!/usr/bin/env bash
+# agent-mem: auto-inject session memory context
+set -euo pipefail
+ACTIVE=".agent-memory/active.md"
+MEM=".agent-memory/memory.md"
+if [ -f "$ACTIVE" ]; then
+  echo "=== agent-mem: active session context ==="
+  cat "$ACTIVE"
+  echo "========================================="
+elif [ -f "$MEM" ]; then
+  echo "=== agent-mem: memory context ==="
+  tail -n 100 "$MEM"
+  echo "=================================="
+fi
+"""
+
+
+def _write_claude_code_hook(project_root: Path) -> Optional[str]:
+    try:
+        claude_dir = project_root / ".claude"
+        claude_dir.mkdir(parents=True, exist_ok=True)
+
+        hook_script_path = claude_dir / "agent-mem-hook.sh"
+        hook_script_path.write_text(_agent_mem_hook_script())
+        hook_script_path.chmod(0o755)
+
+        settings_path = claude_dir / "settings.json"
+        settings: dict = {}
+        if settings_path.exists():
+            try:
+                settings = json.loads(settings_path.read_text())
+            except Exception:
+                settings = {}
+
+        hooks = settings.setdefault("hooks", {})
+        user_prompt_submit = hooks.setdefault("UserPromptSubmit", [])
+
+        cmd = "bash .claude/agent-mem-hook.sh"
+        new_matcher = {"matcher": "", "hooks": [{"type": "command", "command": cmd}]}
+        already_present = any(
+            isinstance(e, dict)
+            and any(
+                isinstance(h, dict) and h.get("command") == cmd
+                for h in e.get("hooks", [])
+            )
+            for e in user_prompt_submit
+        )
+        if not already_present:
+            user_prompt_submit.append(new_matcher)
+
+        settings_path.write_text(json.dumps(settings, indent=2) + "\n")
+        return str(settings_path)
+    except Exception:
+        return None
+
+
 def _cursor_rule_content(project_name: str) -> str:
     return f"""---
 description: Enforce agent-mem memory loading, handoff handling, and structured summaries
 alwaysApply: true
+globs: ["**/*"]
 ---
 
 Use `AGENT-MEM-RULES.md` in the repository root as the canonical policy. Do not override it with your own assumptions.
@@ -223,8 +287,8 @@ Cursor-specific operating rules:
 
 - Project name for this workspace is `{project_name}` unless the user explicitly says otherwise.
 - At the start of every new chat, load memory before planning or coding.
-- If the `agent-mem` MCP tools are visible, call `query_memory` immediately.
-- If MCP tools are not visible, read the saved memory artifacts directly from the repo or Obsidian path.
+- REQUIRED: Call `query_memory` immediately — do not plan or code before memory is loaded.
+- REQUIRED if no MCP: Read `.agent-memory/active.md` directly before any work.
 - Treat `.agent-memory/active.md` as the current handoff state when local fallback mode is active.
 - Before any non-trivial code edit, ground yourself in saved memory and current file state.
 - If the user pastes a watch-generated handoff prompt, execute it immediately and do not treat it like an ordinary question.
@@ -232,7 +296,7 @@ Cursor-specific operating rules:
 
 Cursor execution checklist:
 
-1. Read or query memory.
+1. **REQUIRED**: Read or query memory — this is non-negotiable.
 2. State the active goal.
 3. Do the work.
 4. Re-check whether key decisions changed.
@@ -671,6 +735,130 @@ def graph_build(
     _run_graph_build(enrich=enrich, compact=compact, exclude_file_patterns=exclude_file_pattern)
 
 
+def _prf(tp: int, fp: int, fn: int) -> tuple[float, float, float]:
+    p = tp / (tp + fp) if (tp + fp) else 0.0
+    r = tp / (tp + fn) if (tp + fn) else 0.0
+    f1 = 2 * p * r / (p + r) if (p + r) else 0.0
+    return p, r, f1
+
+
+@graph_app.command("benchmark")
+def graph_benchmark(
+    fixtures_dir: Path = typer.Option(
+        Path("tests/fixtures"),
+        "--fixtures-dir",
+        help="Directory containing fixture .py files and ground_truth.json",
+    ),
+) -> None:
+    """Measure detection accuracy against known fixture files."""
+    gt_path = fixtures_dir / "ground_truth.json"
+    if not gt_path.exists():
+        typer.echo(f"[error] ground_truth.json not found at {gt_path}", err=True)
+        raise typer.Exit(1)
+
+    ground_truth = json.loads(gt_path.read_text())
+
+    total_tp = total_fp = total_fn = 0
+    results = []
+
+    from . import lang_parsers as _lang_parsers
+
+    for fixture_name, expected in ground_truth.items():
+        fixture_path = fixtures_dir / fixture_name
+        if not fixture_path.exists():
+            typer.echo(f"[warn] fixture {fixture_name} not found, skipping")
+            continue
+
+        ext = fixture_path.suffix.lower()
+        file_result: dict[str, Any] = {"fixture": fixture_name, "metrics": {}}
+
+        if ext in (".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"):
+            # TS/JS: use lang_parsers, simple name-list ground truth format
+            if not _lang_parsers.is_available():
+                typer.echo(f"[skip] {fixture_name} — tree-sitter not installed (pip install 'agent-mem[multilang]')")
+                continue
+            result = _lang_parsers.parse_file(fixture_path, fixtures_dir)
+            if result is None:
+                typer.echo(f"[skip] {fixture_name} — parse returned None")
+                continue
+
+            exp_classes = set(expected.get("classes", []))
+            got_classes = {c.name for c in result.classes}
+            tp = len(exp_classes & got_classes); fp = len(got_classes - exp_classes); fn = len(exp_classes - got_classes)
+            total_tp += tp; total_fp += fp; total_fn += fn
+            file_result["metrics"]["classes"] = _prf(tp, fp, fn)
+
+            exp_fns = set(expected.get("functions", []))
+            got_fns = {f.name for f in result.functions if f.owner_class is None}
+            tp = len(exp_fns & got_fns); fp = len(got_fns - exp_fns); fn = len(exp_fns - got_fns)
+            total_tp += tp; total_fp += fp; total_fn += fn
+            file_result["metrics"]["functions"] = _prf(tp, fp, fn)
+
+            exp_imports = set(expected.get("imports", []))
+            got_imports = {i.module for i in result.imports}
+            tp = len(exp_imports & got_imports); fp = len(got_imports - exp_imports); fn = len(exp_imports - got_imports)
+            total_tp += tp; total_fp += fp; total_fn += fn
+            file_result["metrics"]["imports"] = _prf(tp, fp, fn)
+
+        else:
+            # Python: AST-based, object ground truth format, 5 metrics
+            source = fixture_path.read_text(encoding="utf-8")
+            try:
+                tree = ast.parse(source, filename=fixture_name)
+            except SyntaxError as e:
+                typer.echo(f"[error] syntax error in {fixture_name}: {e}", err=True)
+                continue
+
+            collector = _PythonStructureCollector(fixture_name)
+            collector.visit(tree)
+            comments = _extract_comments(source, fixture_name)
+
+            exp_classes = {c["name"] for c in expected.get("classes", [])}
+            got_classes = {c.name for c in collector.classes}
+            tp = len(exp_classes & got_classes); fp = len(got_classes - exp_classes); fn = len(exp_classes - got_classes)
+            total_tp += tp; total_fp += fp; total_fn += fn
+            file_result["metrics"]["classes"] = _prf(tp, fp, fn)
+
+            exp_fns = {f["name"] for f in expected.get("functions", [])}
+            got_fns = {f.name for f in collector.functions if f.owner_class is None}
+            tp = len(exp_fns & got_fns); fp = len(got_fns - exp_fns); fn = len(exp_fns - got_fns)
+            total_tp += tp; total_fp += fp; total_fn += fn
+            file_result["metrics"]["functions"] = _prf(tp, fp, fn)
+
+            exp_imports = {(i["module"], i.get("imported", "")) for i in expected.get("imports", [])}
+            got_imports = {(i.module, i.imported) for i in collector.imports}
+            tp = len(exp_imports & got_imports); fp = len(got_imports - exp_imports); fn = len(exp_imports - got_imports)
+            total_tp += tp; total_fp += fp; total_fn += fn
+            file_result["metrics"]["imports"] = _prf(tp, fp, fn)
+
+            exp_comments = {(c["tag"], c["line"]) for c in expected.get("comments", [])}
+            got_comments = {(c.tag, c.line) for c in comments}
+            tp = len(exp_comments & got_comments); fp = len(got_comments - exp_comments); fn = len(exp_comments - got_comments)
+            total_tp += tp; total_fp += fp; total_fn += fn
+            file_result["metrics"]["comments"] = _prf(tp, fp, fn)
+
+            exp_calls = {(c["caller"], c["callee"]) for c in expected.get("calls", [])}
+            got_calls = {(c.caller, c.callee) for c in collector.calls}
+            tp = len(exp_calls & got_calls); fp = len(got_calls - exp_calls); fn = len(exp_calls - got_calls)
+            total_tp += tp; total_fp += fp; total_fn += fn
+            file_result["metrics"]["calls"] = _prf(tp, fp, fn)
+
+        results.append(file_result)
+
+    # Print results
+    typer.echo("\n=== agent-mem graph benchmark ===\n")
+    for r in results:
+        typer.echo(f"Fixture: {r['fixture']}")
+        for metric, scores in r["metrics"].items():
+            p, rec, f1 = scores
+            typer.echo(f"  {metric:12s}  P={p:.2f}  R={rec:.2f}  F1={f1:.2f}")
+        typer.echo("")
+
+    overall = _prf(total_tp, total_fp, total_fn)
+    typer.echo(f"Overall — P={overall[0]:.2f}  R={overall[1]:.2f}  F1={overall[2]:.2f}")
+    typer.echo(f"TP={total_tp}  FP={total_fp}  FN={total_fn}\n")
+
+
 @app.command("configure-groq")
 def configure_groq(
     api_key: str = typer.Option("", "--api-key", help="Groq API key. If omitted, prompt securely."),
@@ -754,6 +942,10 @@ def init():
         for config_path in written_paths:
             _echo(f"  - {config_path}")
 
+    hook_path = _write_claude_code_hook(project_root)
+    if hook_path:
+        _echo(f"  ✓ Claude Code hook: .claude/settings.json")
+
     _echo("\nSetup complete!")
     _echo(_ide_setup_instructions(ide_target))
     if get_groq_api_key():
@@ -804,6 +996,11 @@ def setup():
         _echo("✅ MCP config updated:")
         for config_path in written_paths:
             _echo(f"  - {config_path}")
+
+    hook_path = _write_claude_code_hook(project_root)
+    if hook_path:
+        _echo(f"  ✓ Claude Code hook: .claude/settings.json")
+
     _echo(_ide_setup_instructions(ide_target))
 
 
@@ -1223,6 +1420,17 @@ def status():
     _echo("Graph command  : agent-mem graph build")
     _echo(f"Groq ready     : {groq_configured} ({groq_source})")
     _echo(f"Groq model     : {groq_model}")
+
+
+@app.command("tui")
+def tui_command() -> None:
+    """Open the interactive terminal UI dashboard."""
+    try:
+        from .tui import launch
+    except ImportError:
+        _echo("textual not installed. Run: pip install 'agent-mem[tui]'", err=True)
+        raise typer.Exit(1)
+    launch()
 
 
 if __name__ == "__main__":

@@ -26,6 +26,21 @@ Automatic context compression and persistent memory for AI coding agents.
 
 ---
 
+## How agent-mem Differs
+
+| System | Focus | Code-aware | IDE Enforcement | Call Graph | Multi-language | Local-first | Benchmarked |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **agent-mem** | Code session memory | ✅ | ✅ MCP gate + hooks | ✅ | ✅ Python, TS, JS | ✅ | ✅ P/R/F1 |
+| mem0 | NLP conversation memory | ❌ | ❌ | ❌ | ❌ | Partial | ✅ NLP tasks |
+| Zep | Conversation memory | ❌ | ❌ | ❌ | ❌ | ❌ | Limited |
+| MemGPT / Letta | General memory management | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ NLP tasks |
+| Continue.dev | IDE context window | Partial | ❌ | ❌ | Partial | ✅ | ❌ |
+| Aider | Context management | Partial | ❌ | ❌ | Partial | ✅ | ❌ |
+
+**Key differentiators**: agent-mem is the only system that enforces memory loading (MCP session gate + Claude Code `UserPromptSubmit` hook), extracts call graphs from code, and ships a precision/recall benchmark for its own detection.
+
+---
+
 ## Core Features
 
 - Smart `watch` mode with file + git + idle detection
@@ -33,9 +48,13 @@ Automatic context compression and persistent memory for AI coding agents.
 - Cross-IDE context migration (`agent-mem migrate`) for Cursor, Claude (VS Code), and OpenCode
 - Obsidian-first storage with wiki-links and YAML frontmatter
 - Local fallback mode (`.agent-memory/`) when Obsidian is not configured
-- `graph` command to build project knowledge docs from code + memory + chat context
-- Graph dashboard summary cards with operational status and quick navigation
-- Friendly `--enrich` diagnostics when Groq setup is missing/invalid
+- `graph` command builds project knowledge docs from code + memory + chat context
+- **Call graph extraction** — tracks which functions call which across the codebase
+- **Multi-language extraction** — Python (AST) + TypeScript/JavaScript (tree-sitter, optional)
+- **MCP session gate** — warns agents that skip `query_memory` before summarizing
+- **Claude Code enforcement hook** — `UserPromptSubmit` hook auto-injects memory context every prompt
+- **Benchmark command** — `graph benchmark` measures extraction Precision/Recall/F1 against ground truth
+- **Terminal UI** — `agent-mem tui` opens an interactive status/memory/benchmark dashboard
 - Incremental graph parse cache for faster rebuilds on unchanged files
 - Progress output for large project scans
 
@@ -45,6 +64,14 @@ Automatic context compression and persistent memory for AI coding agents.
 
 ```bash
 pip install easy-agent-mem
+```
+
+Optional extras:
+
+```bash
+pip install 'easy-agent-mem[tui]'       # terminal UI (agent-mem tui)
+pip install 'easy-agent-mem[multilang]' # TypeScript/JavaScript extraction via tree-sitter
+pip install 'easy-agent-mem[mcp]'       # MCP server support
 ```
 
 ---
@@ -304,6 +331,13 @@ agent-mem migrate --full cursor .
 | Command | Description | Example |
 | --- | --- | --- |
 | `agent-mem graph build` | Generate knowledge graph notes and dashboard | `agent-mem graph build --compact --exclude-file-pattern "tests/*"` |
+| `agent-mem graph benchmark` | Measure extraction Precision/Recall/F1 against fixture ground truth | `agent-mem graph benchmark --fixtures-dir tests/fixtures` |
+
+### Terminal UI
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `agent-mem tui` | Open interactive terminal dashboard (Status / Memory / Benchmark tabs) | `agent-mem tui` |
 
 ### Watch Mode and Handoff Automation
 
