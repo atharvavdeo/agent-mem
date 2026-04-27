@@ -134,6 +134,7 @@ class CallRecord:
     callee: str          # name of called function (as written in source)
     file_path: str
     line: int
+    callee_file: str | None = None  # resolved after all files are parsed
 
 
 @dataclass
@@ -175,6 +176,7 @@ class BuildResult:
     cache_misses: int = 0
     duration_seconds: float = 0.0
     calls_found: int = 0
+    cross_file_calls_found: int = 0
     lang_files_scanned: int = 0
 
 
@@ -528,7 +530,16 @@ def _file_record_from_dict(payload: dict[str, Any]) -> FileRecord:
 
     functions = [FunctionRecord(**item) for item in payload.get("functions", [])]
     comments = [CommentRecord(**item) for item in payload.get("comments", [])]
-    calls = [CallRecord(**item) for item in payload.get("calls", [])]
+    calls = [
+        CallRecord(
+            caller=item.get("caller", ""),
+            callee=item.get("callee", ""),
+            file_path=item.get("file_path", ""),
+            line=item.get("line", 0),
+            callee_file=item.get("callee_file"),
+        )
+        for item in payload.get("calls", [])
+    ]
 
     return FileRecord(
         file_path=payload.get("file_path", ""),
@@ -1217,6 +1228,94 @@ def _render_call_graph(files: list[FileRecord], limit: int = 30) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _resolve_cross_file_calls(records: list[FileRecord]) -> int:
+    """Mutate CallRecord.callee_file for cross-file calls. Returns count of cross-file edges."""
+    # Map every defined name → file(s) that define it
+    defn_map: dict[str, list[str]] = {}
+    for record in records:
+        for fn in record.functions:
+            defn_map.setdefault(fn.name, []).append(record.file_path)
+        for cls in record.classes:
+            defn_map.setdefault(cls.name, []).append(record.file_path)
+            for method in cls.methods:
+                defn_map.setdefault(method.name, []).append(record.file_path)
+
+    cross = 0
+    for record in records:
+        for call in record.calls:
+            if call.callee_file is not None:
+                continue  # already resolved (from cache)
+            candidates = defn_map.get(call.callee, [])
+            other = [f for f in candidates if f != record.file_path]
+            if other:
+                call.callee_file = other[0]
+                cross += 1
+            elif candidates:
+                call.callee_file = record.file_path  # same-file, mark anyway
+    return cross
+
+
+def _render_cross_file_call_graph(records: list[FileRecord]) -> str:
+    """Render cross-file call relationships as an Obsidian-linkable note body."""
+    from collections import defaultdict
+
+    # Collect only cross-file edges
+    edges: list[tuple[str, str, str, str]] = []  # (caller_file, caller, callee_file, callee)
+    for record in records:
+        for call in record.calls:
+            if call.callee_file and call.callee_file != record.file_path:
+                edges.append((record.file_path, call.caller, call.callee_file, call.callee))
+
+    if not edges:
+        return "No cross-file call relationships detected."
+
+    # Group by caller_file
+    by_caller_file: dict[str, list[tuple[str, str, str]]] = defaultdict(list)
+    for caller_file, caller, callee_file, callee in edges:
+        by_caller_file[caller_file].append((caller, callee, callee_file))
+
+    lines = [
+        "Cross-file function calls resolved from static AST analysis.",
+        "Each entry shows a caller in one module invoking a function defined in another.",
+        "",
+    ]
+
+    # Build a de-duped file-to-file edge summary at top
+    file_edges: dict[tuple[str, str], int] = {}
+    for caller_file, caller, callee_file, callee in edges:
+        key = (caller_file, callee_file)
+        file_edges[key] = file_edges.get(key, 0) + 1
+
+    lines.append("## Module Dependency Map\n")
+    lines.append("| From | To | Calls |")
+    lines.append("| --- | --- | ---: |")
+    for (src, dst), count in sorted(file_edges.items(), key=lambda x: -x[1]):
+        src_stem = Path(src).stem
+        dst_stem = Path(dst).stem
+        lines.append(f"| `{src_stem}` | `{dst_stem}` | {count} |")
+
+    lines.append("")
+    lines.append("## Call Details\n")
+
+    for caller_file in sorted(by_caller_file):
+        caller_stem = Path(caller_file).stem
+        calls_here = by_caller_file[caller_file]
+        # Get unique destination files
+        dest_files = sorted({cf for _, _, cf in calls_here})
+        dest_links = " · ".join(f"[[Code/call-graph|{Path(d).stem}]]" for d in dest_files)
+        lines.append(f"### `{caller_file}` → {dest_links}\n")
+        for caller, callee, callee_file in sorted(calls_here):
+            callee_stem = Path(callee_file).stem
+            lines.append(f"- `{caller}` calls `{callee}` *(defined in `{callee_file}`)*")
+        lines.append("")
+
+    lines.append("---")
+    lines.append("*See [[Code/functions]] for the full function catalog.*")
+    lines.append("*See [[Graph-Report]] for the full call graph summary.*")
+
+    return "\n".join(lines)
+
+
 def _render_graph_report(
     project_name: str,
     records: list[FileRecord],
@@ -1357,6 +1456,12 @@ def _render_index(
     total_classes = sum(len(record.classes) for record in records)
     total_functions = sum(len(record.functions) for record in records)
     total_imports = sum(len(record.imports) for record in records)
+    total_calls = sum(len(record.calls) for record in records)
+    cross_file_calls = sum(
+        1 for record in records
+        for call in record.calls
+        if call.callee_file and call.callee_file != record.file_path
+    )
     generated_at = _now().strftime("%Y-%m-%d %H:%M:%S %Z")
     top_concepts = concepts[:10]
     decision_status = "Healthy" if decisions else "No explicit decision signals"
@@ -1403,6 +1508,8 @@ def _render_index(
         f"| Classes | {total_classes} |",
         f"| Functions | {total_functions} |",
         f"| Imports | {total_imports} |",
+        f"| Call Relationships | {total_calls} |",
+        "| Cross-File Calls | [[Code/call-graph" + f"|{cross_file_calls}]] |",
         f"| Decisions | {len(decisions)} |",
         f"| Blockers | {len(blockers)} |",
         f"| Concepts | {len(concepts)} |",
@@ -1413,6 +1520,7 @@ def _render_index(
         "- [[Code/classes]]",
         "- [[Code/functions]]",
         "- [[Code/imports]]",
+        "- [[Code/call-graph]]",
         "- [[Decisions/key-decisions]]",
         "- [[Decisions/open-blockers]]",
         "- [[Sessions/recent-chats]]",
@@ -1441,6 +1549,7 @@ def _render_index(
         "- [[Code/classes]]",
         "- [[Code/functions]]",
         "- [[Code/imports]]",
+        "- [[Code/call-graph]]",
         "",
         "### Decision Intelligence",
         "",
@@ -1794,7 +1903,9 @@ def build_graph(
         enriched=enrichment_requested,
         compact=compact,
     )
+    cross_file_calls_found = _resolve_cross_file_calls(records)
     call_graph_section = _render_call_graph(records)
+    body_call_graph = _render_cross_file_call_graph(records)
     lang_file_list = _collect_lang_files(root, exclude_patterns=normalized_excludes)
     lang_results = [r for lf in lang_file_list if (r := lang_parsers.parse_file(lf, root)) is not None]
     lang_files_section = _render_lang_files(lang_results)
@@ -1831,6 +1942,7 @@ def build_graph(
         code_dir / "classes.md": ("Code Classes", "agent-mem-graph-code-classes", body_classes),
         code_dir / "functions.md": ("Code Functions", "agent-mem-graph-code-functions", body_functions),
         code_dir / "imports.md": ("Code Imports", "agent-mem-graph-code-imports", body_imports),
+        code_dir / "call-graph.md": ("Call Graph", "agent-mem-graph-call-graph", body_call_graph),
         decisions_dir / "key-decisions.md": ("Key Decisions", "agent-mem-graph-decisions", body_decisions),
         decisions_dir / "open-blockers.md": ("Open Blockers", "agent-mem-graph-blockers", body_blockers),
         sessions_dir / "recent-chats.md": ("Recent Chats", "agent-mem-graph-recent-chats", body_sessions),
@@ -1892,5 +2004,6 @@ def build_graph(
         cache_misses=cache_misses,
         duration_seconds=duration_seconds,
         calls_found=sum(len(record.calls) for record in records),
+        cross_file_calls_found=cross_file_calls_found,
         lang_files_scanned=len(lang_file_list),
     )
