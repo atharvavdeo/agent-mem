@@ -2,7 +2,7 @@
 
 ![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
 
-[![PyPI version](https://img.shields.io/pypi/v/easy-agent-mem)](https://pypi.org/project/easy-agent-mem/)
+[![PyPI version](https://img.shields.io/pypi/v/easy-agent-mem?cacheSeconds=0)](https://pypi.org/project/easy-agent-mem/)
 [![Python version](https://img.shields.io/pypi/pyversions/easy-agent-mem)](https://pypi.org/project/easy-agent-mem/)
 [![License](https://img.shields.io/pypi/l/easy-agent-mem)](https://github.com/atharvavdeo/agent-mem/blob/main/LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/atharvavdeo/agent-mem?style=social)](https://github.com/atharvavdeo/agent-mem/stargazers)
