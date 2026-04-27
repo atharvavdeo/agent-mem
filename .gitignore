@@ -28,6 +28,9 @@ htmlcov/
 # OS files
 .DS_Store
 
+# Landing page (separate deployment, not part of package)
+agent-mem-landing/
+
 # Local IDE and generated memory artifacts
 .agent-memory/
 .cursor/
