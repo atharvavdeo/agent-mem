@@ -2,14 +2,19 @@
 
 ![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
 
-![PyPI version](https://img.shields.io/pypi/v/easy-agent-mem)
-![Python version](https://img.shields.io/pypi/pyversions/easy-agent-mem)
-![License](https://img.shields.io/pypi/l/easy-agent-mem)
-![GitHub stars](https://img.shields.io/github/stars/atharvavdeo/agent-mem?style=social)
-![GitHub forks](https://img.shields.io/github/forks/atharvavdeo/agent-mem?style=social)
-![GitHub issues](https://img.shields.io/github/issues/atharvavdeo/agent-mem)
-![PyPI downloads](https://img.shields.io/pypi/dm/easy-agent-mem)
-![Last commit](https://img.shields.io/github/last-commit/atharvavdeo/agent-mem)
+[![PyPI version](https://img.shields.io/pypi/v/easy-agent-mem)](https://pypi.org/project/easy-agent-mem/)
+[![Python version](https://img.shields.io/pypi/pyversions/easy-agent-mem)](https://pypi.org/project/easy-agent-mem/)
+[![License](https://img.shields.io/pypi/l/easy-agent-mem)](https://github.com/atharvavdeo/agent-mem/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/atharvavdeo/agent-mem?style=social)](https://github.com/atharvavdeo/agent-mem/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/atharvavdeo/agent-mem?style=social)](https://github.com/atharvavdeo/agent-mem/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/atharvavdeo/agent-mem)](https://github.com/atharvavdeo/agent-mem/issues)
+[![PyPI downloads](https://img.shields.io/pypi/dm/easy-agent-mem)](https://pypi.org/project/easy-agent-mem/)
+[![Last commit](https://img.shields.io/github/last-commit/atharvavdeo/agent-mem)](https://github.com/atharvavdeo/agent-mem/commits/main)
+[![MCP compatible](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://github.com/atharvavdeo/agent-mem)
+[![parser: tree-sitter](https://img.shields.io/badge/parser-tree--sitter-orange)](https://tree-sitter.github.io/tree-sitter/)
+[![languages](https://img.shields.io/badge/languages-Python%20%7C%20TypeScript%20%7C%20JavaScript-blue)](https://github.com/atharvavdeo/agent-mem)
+[![extraction F1](https://img.shields.io/badge/extraction%20F1-1.00-brightgreen)](https://github.com/atharvavdeo/agent-mem)
+[![TUI](https://img.shields.io/badge/TUI-Textual-1d4ed8)](https://github.com/Textualize/textual)
 
 Automatic context compression and persistent memory for AI coding agents.
 
