@@ -38,3 +38,19 @@ agent-mem-landing/
 .antigravity/
 .opencode/
 .vscode/
+
+# Second landing page directory
+agent-mem-landing-page/
+
+# Generated graph output (local artifact, not source)
+agent-mem-output/
+
+# Node / JS artifacts at repo root
+node_modules/
+package-lock.json
+package.json
+
+# Screenshots and local media
+Screenshot*.png
+*.mov
+*.mp4
