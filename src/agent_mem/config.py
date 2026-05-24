@@ -21,8 +21,6 @@ def _config_file() -> Path:
     return _config_dir() / "config.toml"
 
 
-CONFIG_DIR = _config_dir()
-CONFIG_FILE = _config_file()
 DEFAULT_CONFIG = {
     "use_obsidian": False,
     "obsidian_vault": None,
@@ -74,24 +72,22 @@ def _serialize_toml(config: dict) -> str:
 
 
 def get_config() -> dict:
-    global CONFIG_DIR, CONFIG_FILE
-    CONFIG_DIR = _config_dir()
-    CONFIG_FILE = _config_file()
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    if not CONFIG_FILE.exists():
+    config_dir = _config_dir()
+    config_file = _config_file()
+    config_dir.mkdir(parents=True, exist_ok=True)
+    if not config_file.exists():
         return dict(DEFAULT_CONFIG)
 
-    with open(CONFIG_FILE, "rb") as file:
+    with open(config_file, "rb") as file:
         loaded = tomllib.load(file)
     return _normalize_config(loaded)
 
 
 def save_config(config: dict):
-    global CONFIG_DIR, CONFIG_FILE
-    CONFIG_DIR = _config_dir()
-    CONFIG_FILE = _config_file()
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(_serialize_toml(_normalize_config(config)), encoding="utf-8")
+    config_dir = _config_dir()
+    config_file = _config_file()
+    config_dir.mkdir(parents=True, exist_ok=True)
+    config_file.write_text(_serialize_toml(_normalize_config(config)), encoding="utf-8")
 
 
 def get_groq_api_key() -> str | None:
