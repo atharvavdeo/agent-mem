@@ -178,6 +178,7 @@ def _walk(node, file_path: str, lines: list[str], functions: list, classes: list
                         is_async=is_async,
                         owner_class=owner_class,
                     ))
+        return  # children already processed above — same pattern as class_declaration
 
     for child in node.children:
         _walk(child, file_path, lines, functions, classes, imports, owner_class)
