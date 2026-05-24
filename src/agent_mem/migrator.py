@@ -95,7 +95,6 @@ class ContextExtractor:
     def extract_claude_vscode(self) -> ExtractionReport:
         roots = [
             self.project_root / ".claude",
-            self.project_root / ".vscode",
             Path.home() / "Library" / "Application Support" / "Code" / "User" / "workspaceStorage",
         ]
         return self._extract_from_roots("claude", roots)
@@ -179,7 +178,7 @@ class ContextExtractor:
                 except OSError:
                     continue
 
-        candidates.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        candidates.sort(key=lambda item: (item[1], item[0]), reverse=True)
 
         selected: list[Path] = []
         seen: set[str] = set()
