@@ -5,7 +5,7 @@ except ImportError:  # pragma: no cover - fallback for older installs
 
 from pathlib import Path
 
-from .memory import get_fallback_memory_file, is_obsidian_enabled, list_recent_session_files, recall_memory, write_session_summary
+from .memory import is_obsidian_enabled, list_recent_session_files, recall_memory, write_session_summary
 
 mcp = FastMCP("agent-mem")
 
@@ -21,9 +21,13 @@ def query_memory(project_name: str, query: str) -> str:
     - Obsidian mode: reads recent notes from <vault>/Memory/Agent-Mem
     - Fallback mode: reads local .agent-memory/memory.md
     """
-    _session["memory_loaded"] = True
+    # Reset state so each query_memory call marks a clean session start,
+    # preventing stale memory_loaded=True from a previous connection bleeding in.
+    _session["memory_loaded"] = False
     project_root = Path.cwd().resolve()
-    return recall_memory(project_name, query, count=5, project_root=project_root)
+    result = recall_memory(project_name, query, count=5, project_root=project_root)
+    _session["memory_loaded"] = True
+    return result
 
 @mcp.tool()
 def summarize_to_obsidian(project_name: str, summary: str) -> str:
@@ -38,11 +42,14 @@ def summarize_to_obsidian(project_name: str, summary: str) -> str:
     filepath = write_session_summary(project_name, summary, project_root=project_root)
     target = "Obsidian" if is_obsidian_enabled() else "local memory file"
 
+    loaded = _session["memory_loaded"]
+    _session["memory_loaded"] = False  # reset so next session starts clean
+
     result = (
         f"✅ Session summarized and saved to {target}: {filepath}\n"
         "You can now start a fresh chat. Future chats will use query_memory first."
     )
-    if not _session["memory_loaded"]:
+    if not loaded:
         result = (
             "⚠️ MEMORY NOT LOADED: query_memory was not called this session. "
             "Memory context is missing — summary may be incomplete. "
@@ -65,8 +72,7 @@ def list_recent_sessions(project_name: str, count: int = 3) -> str:
     elif is_obsidian_enabled():
         result = "\n".join(file_path.name for file_path in files)
     else:
-        fallback = get_fallback_memory_file(project_root)
-        result = str(fallback.relative_to(project_root)) if fallback.exists() else "No sessions yet"
+        result = "\n".join(str(f.relative_to(project_root)) for f in files)
 
     if not _session["memory_loaded"]:
         result = (
