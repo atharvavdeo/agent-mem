@@ -8,7 +8,7 @@ import time
 from typing import Callable
 
 from .config import get_config, get_groq_api_key
-from .memory import get_active_context_file, get_fallback_memory_file, get_handoff_outbox_file
+from .memory import get_active_context_file, get_fallback_memory_file, get_handoff_outbox_file, is_obsidian_enabled, list_recent_session_files
 
 
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
@@ -92,7 +92,7 @@ def _run_git(project_root: Path, args: list[str]) -> subprocess.CompletedProcess
 
 
 def git_diff_stat(project_root: Path) -> tuple[int, str]:
-    proc = _run_git(project_root, ["diff", "--numstat"])
+    proc = _run_git(project_root, ["diff", "HEAD", "--numstat"])
     if proc is None or proc.returncode != 0:
         return 0, "git diff unavailable"
 
@@ -135,7 +135,11 @@ def build_trigger(
     diff_lines, diff_stat = git_diff_stat(project_root)
     diff_excerpt = git_diff_excerpt(project_root, changed_files)
     active_context = _safe_read(get_active_context_file(project_root), limit=5000)
-    recent_memory = _safe_read(get_fallback_memory_file(project_root), limit=5000)
+    if is_obsidian_enabled():
+        recent_files = list_recent_session_files(project_name, count=3, project_root=project_root)
+        recent_memory = "\n\n".join(_safe_read(f, limit=2000) for f in recent_files).strip()
+    else:
+        recent_memory = _safe_read(get_fallback_memory_file(project_root), limit=5000)
     return WatchTrigger(
         project_root=project_root,
         project_name=project_name,
