@@ -68,8 +68,6 @@ def _extract_file_links(summary: str) -> list[str]:
     seen: set[str] = set()
     links: list[str] = []
     for match in matches:
-        if "/" not in match and "." not in match:
-            continue
         suffix = match.rsplit(".", 1)[-1]
         if not re.search(r"[A-Za-z]", suffix):
             continue
@@ -465,7 +463,7 @@ def list_recent_session_files(
     if is_obsidian_enabled():
         memory_dir = get_memory_dir(resolved_project_root)
         files = sorted(
-            memory_dir.glob(f"{project_name}*.md"),
+            memory_dir.glob(f"{_slug(project_name)}*.md"),
             key=lambda path: path.stat().st_mtime,
             reverse=True,
         )
