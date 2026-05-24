@@ -385,6 +385,25 @@ If Obsidian is unavailable, memory is written to:
 
 ---
 
+## What's Fixed in 0.7.2
+
+Ten reliability bugs fixed across the core modules.
+
+| # | Module | Bug | Fix |
+|---|---|---|---|
+| 1 | `memory.py` | Obsidian session glob used raw project name — never matched any file | Changed to `_slug(project_name)` to match how session files are written |
+| 2 | `lang_parsers.py` | Arrow function records duplicated — `lexical_declaration` fell through to unconditional child walk | Added `return` after handling, matching the `class_declaration` pattern |
+| 3 | `watcher.py` | Obsidian users always got empty `recent_memory` in handoff prompts — fallback file is empty in Obsidian mode | Now reads recent Obsidian session files via `list_recent_session_files` when Obsidian enabled |
+| 4 | `mcp_server.py` | `_session` state bled across MCP connections — `memory_loaded=True` from one caller persisted to the next | Reset `memory_loaded` at start of `query_memory` and after `summarize_to_obsidian` |
+| 5 | `migrator.py` | Candidate file sort prioritised recency over relevance — low-score stale files could beat fresh matches | Sort key flipped to `(score, mtime)` so relevance wins, recency is tiebreaker |
+| 6 | `migrator.py` | `.vscode` included in Claude extraction roots — scanned editor config JSON as chat transcripts | Removed `.vscode` from roots; only `.claude` and system storage paths are scanned |
+| 7 | `mcp_server.py` | `list_recent_sessions` ignored `count` param in fallback mode — always returned one file regardless | Now uses the `files` list returned by `list_recent_session_files`, which already respects `count` |
+| 8 | `watcher.py` | `git diff --numstat` missed staged changes — watcher saw 0 diff lines when all changes were staged | Changed to `git diff HEAD --numstat` which covers both staged and unstaged |
+| 9 | `memory.py` | Dead condition `"." not in match` in `_extract_file_links` — regex guarantees a `.` is always present | Removed the unreachable branch |
+| 10 | `config.py` | Module-level `CONFIG_DIR`/`CONFIG_FILE` reassigned on every call via `global` — dead assignments | Removed module-level globals and `global` statements; functions use local vars |
+
+---
+
 ## Project Links
 
 - PyPI: [easy-agent-mem](https://pypi.org/project/easy-agent-mem/)
