@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 import click
 import typer
 
-from .config import CONFIG_FILE, get_config, get_groq_api_key, save_config
+from .config import _config_file, get_config, get_llm_api_key, get_llm_model, get_llm_provider, save_config
 from .graph import (
     CallRecord,
     build_graph,
@@ -30,6 +30,8 @@ from .migrator import ContextMigrator, SUPPORTED_SOURCES
 app = typer.Typer()
 graph_app = typer.Typer(help="Build Obsidian-friendly project knowledge notes.")
 app.add_typer(graph_app, name="graph")
+from .engineering_cli import app as engineering_app
+app.add_typer(engineering_app, name="engineering")
 
 
 def _echo(message: str = "", err: bool = False):
@@ -64,6 +66,7 @@ def _quickstart_lines(project_root: Path | None = None) -> list[str]:
         "Most useful commands:",
         "  agent-mem init",
         "  agent-mem configure-groq",
+        "  agent-mem configure-cerebras",
         "  agent-mem migrate --dry-run cursor .",
         "  agent-mem test-watch --dry-run",
         "  agent-mem watch --dry-run --once",
@@ -681,8 +684,8 @@ def _run_graph_build(
     _echo(f"Duration (sec)  : {result.duration_seconds:.2f}")
     if enrich and not result.enriched:
         _echo("⚠️ Enrich was requested, but no inferred data was added.")
-        _echo("   Check Groq configuration with: agent-mem status")
-        _echo("   Set/fix key with: agent-mem configure-groq")
+        _echo("   Check selected provider configuration with: agent-mem status")
+        _echo(f"   Set/fix key with: agent-mem configure-{get_llm_provider()}")
     if result.notes:
         _echo("Notes:")
         for note in result.notes:
@@ -871,14 +874,45 @@ def configure_groq(
         _echo("❌ Groq API key is required.", err=True)
         raise typer.Exit(1)
 
+    config["llm_provider"] = "groq"
     config["groq_api_key"] = resolved_key
     if model.strip():
         config["groq_model"] = model.strip()
     save_config(config)
 
-    _echo(f"✅ Groq API key saved to {CONFIG_FILE}")
+    _echo(f"✅ Groq API key saved to {_config_file()}")
     _echo(f"Groq model      : {get_config().get('groq_model')}")
     _echo("You can now run: agent-mem watch --once --dry-run")
+
+
+@app.command("configure-cerebras")
+def configure_cerebras(
+    model: str = typer.Option("qwen-3.8-27b", "--model", help="Cerebras model ID."),
+    use_env: bool = typer.Option(False, "--use-env", help="Use CEREBRAS_API_KEY from the environment without saving it."),
+):
+    """Select Cerebras while preserving existing Groq configuration."""
+    import os
+
+    config = get_config()
+    if not model.strip():
+        _echo("❌ A Cerebras model ID is required.", err=True)
+        raise typer.Exit(1)
+    if use_env:
+        if not os.environ.get("CEREBRAS_API_KEY", "").strip():
+            _echo("❌ Set CEREBRAS_API_KEY before using --use-env.", err=True)
+            raise typer.Exit(1)
+    else:
+        resolved_key = _prompt_secret("Cerebras API key")
+        if not resolved_key:
+            _echo("❌ Cerebras API key is required.", err=True)
+            raise typer.Exit(1)
+        config["cerebras_api_key"] = resolved_key
+    config["llm_provider"] = "cerebras"
+    config["cerebras_model"] = model.strip()
+    save_config(config)
+    _echo(f"✅ Cerebras selected in {_config_file()}")
+    _echo(f"Cerebras model : {model.strip()}")
+    _echo("Credential     : environment only" if use_env else "Credential     : saved configuration")
 
 
 @app.command()
@@ -888,12 +922,8 @@ def init():
     vault = _prompt("Full path to your Obsidian vault (press Enter to skip and use local memory.md)", default="")
 
     existing = get_config()
-    config = {
-        "use_obsidian": False,
-        "obsidian_vault": None,
-        "groq_api_key": existing.get("groq_api_key"),
-        "groq_model": existing.get("groq_model"),
-    }
+    config = dict(existing)
+    config.update(use_obsidian=False, obsidian_vault=None)
     if vault.strip():
         vault_path = Path(vault).expanduser().resolve()
         if vault_path.exists():
@@ -908,7 +938,7 @@ def init():
     ide_target = _prompt_ide_target()
 
     save_config(config)
-    _echo(f"✅ Config saved to {CONFIG_FILE}")
+    _echo(f"✅ Config saved to {_config_file()}")
 
     project_root = _project_root()
     created_storage = initialize_storage(project_root)
@@ -946,19 +976,28 @@ def init():
     if hook_path:
         _echo(f"  ✓ Claude Code hook: .claude/settings.json")
 
+    if ide_target == "cursor":
+        from .lifecycle import install_cursor
+        try:
+            native = install_cursor(project_root)
+            _echo(f"  ✓ Cursor lifecycle hooks: {native['config']}")
+        except (ValueError, OSError) as exc:
+            _echo(f"Cursor hook setup failed; existing config preserved: {exc}", err=True)
+
     _echo("\nSetup complete!")
     _echo(_ide_setup_instructions(ide_target))
-    if get_groq_api_key():
+    if get_llm_api_key():
         _echo("Watch mode      : Ready")
-        _echo(f"Groq model      : {get_config().get('groq_model')}")
+        _echo(f"LLM provider    : {get_llm_provider()}")
+        _echo(f"LLM model       : {get_llm_model()}")
         _echo("Run this when you want automatic handoff generation:")
         _echo("  agent-mem watch --dry-run --once")
         _echo("Then remove --dry-run for real clipboard handoff prompts.")
     else:
         _echo("Watch mode      : Not configured yet")
         _echo("To enable one-paste handoff prompts:")
-        _echo("  1. export GROQ_API_KEY=...   # temporary")
-        _echo("  2. or run: agent-mem configure-groq")
+        _echo(f"  1. export {get_llm_provider().upper()}_API_KEY=...   # temporary")
+        _echo(f"  2. or run: agent-mem configure-{get_llm_provider()}")
 
     _echo("Terminal-only test:")
     _echo("  1. agent-mem checkpoint --stdin")
@@ -1001,7 +1040,43 @@ def setup():
     if hook_path:
         _echo(f"  ✓ Claude Code hook: .claude/settings.json")
 
+    if ide_target == "cursor":
+        from .lifecycle import install_cursor
+        try:
+            native = install_cursor(project_root)
+            _echo(f"  ✓ Cursor lifecycle hooks: {native['config']}")
+        except (ValueError, OSError) as exc:
+            _echo(f"Cursor hook setup failed; existing config preserved: {exc}", err=True)
+
     _echo(_ide_setup_instructions(ide_target))
+
+
+@app.command("setup-cursor")
+def setup_cursor():
+    """Install additive native Cursor lifecycle hooks in the current project."""
+    from .lifecycle import install_cursor
+    try:
+        typer.echo(json.dumps(install_cursor(_project_root()), indent=2))
+    except (ValueError, OSError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1)
+
+
+@app.command("cursor-hook")
+def cursor_hook(event: str):
+    """Read a native Cursor lifecycle event from stdin and emit hook JSON."""
+    from .lifecycle import handle_event
+    from .engineering_store import EngineeringStore, redact
+    try:
+        raw = sys.stdin.buffer.read(2 * 1024 * 1024 + 1)
+        if len(raw) > 2 * 1024 * 1024:
+            raise ValueError("Hook payload exceeds 2 MiB")
+        payload = json.loads(raw)
+        typer.echo(json.dumps(handle_event(EngineeringStore(_project_root()), event, payload), ensure_ascii=False))
+    except (ValueError, OSError) as exc:
+        typer.echo("{}")
+        typer.echo(redact(str(exc)), err=True)
+        raise typer.Exit(1)
 
 
 @app.command("setup-vscode")
@@ -1236,7 +1311,7 @@ def recall(
 
 @app.command("test-watch")
 def test_watch(
-    dry_run: bool = typer.Option(False, "--dry-run", help="Generate a local canned handoff instead of calling Groq."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Generate a local canned handoff instead of calling the selected provider."),
     project_name: str = typer.Option("", "--project-name", help="Override the inferred project name."),
     files: List[str] = typer.Option([], "--file", help="File path to include in the test handoff. Repeatable."),
 ):
@@ -1245,9 +1320,9 @@ def test_watch(
     effective_project_name = project_name.strip() or _project_name_from_root(project_root)
     initialize_storage(project_root)
 
-    if not dry_run and not get_groq_api_key():
-        _echo("❌ Groq is not configured.", err=True)
-        _echo("Set GROQ_API_KEY in your shell or run: agent-mem configure-groq", err=True)
+    if not dry_run and not get_llm_api_key():
+        _echo(f"❌ {get_llm_provider()} is not configured.", err=True)
+        _echo(f"Set {get_llm_provider().upper()}_API_KEY in your shell or run: agent-mem configure-{get_llm_provider()}", err=True)
         _echo("If you just want to test formatting and delivery, run: agent-mem test-watch --dry-run", err=True)
         raise typer.Exit(1)
 
@@ -1287,7 +1362,7 @@ def watch(
     min_changes: int = typer.Option(5, "--min-changes", min=1, help="Minimum number of changed files before a handoff triggers."),
     min_diff_lines: int = typer.Option(400, "--min-diff-lines", min=1, help="Minimum git diff line count before a handoff triggers."),
     once: bool = typer.Option(False, "--once", help="Exit after the first automatic checkpoint is saved."),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Skip the Groq call and generate a canned handoff prompt for testing."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Skip the provider call and generate a canned handoff prompt for testing."),
     project_name: str = typer.Option("", "--project-name", help="Override the inferred project name."),
 ):
     """Watch the repo and generate one-paste handoff prompts for your IDE chat."""
@@ -1295,9 +1370,9 @@ def watch(
     effective_project_name = project_name.strip() or _project_name_from_root(project_root)
     initialize_storage(project_root)
 
-    if not dry_run and not get_groq_api_key():
-        _echo("❌ Groq is not configured.", err=True)
-        _echo("Set GROQ_API_KEY in your shell or run: agent-mem configure-groq", err=True)
+    if not dry_run and not get_llm_api_key():
+        _echo(f"❌ {get_llm_provider()} is not configured.", err=True)
+        _echo(f"Set {get_llm_provider().upper()}_API_KEY in your shell or run: agent-mem configure-{get_llm_provider()}", err=True)
         _echo("If you just want to test the watcher flow, run: agent-mem watch --dry-run --once", err=True)
         raise typer.Exit(1)
 
@@ -1369,8 +1444,8 @@ def serve(
         _echo("❌ Obsidian mode selected but no vault path found. Re-run agent-mem init.", err=True)
         raise typer.Exit(1)
 
-    _echo("agent-mem MCP server started (stdio transport)")
-    _echo("Tip: run 'agent-mem print-mcp-json' if you need a config block.")
+    _echo("agent-mem MCP server started (stdio transport)", err=True)
+    _echo("Tip: run 'agent-mem print-mcp-json' if you need a config block.", err=True)
     mcp.run()
 
 
@@ -1380,10 +1455,11 @@ def status():
     config = get_config()
     project_root = _project_root()
     vault = config.get("obsidian_vault")
-    groq_key = get_groq_api_key()
-    groq_configured = "yes" if groq_key else "no"
-    groq_source = "env/config" if groq_key else "missing"
-    groq_model = config.get("groq_model")
+    provider = get_llm_provider()
+    llm_key = get_llm_api_key()
+    llm_configured = "yes" if llm_key else "no"
+    llm_source = "env/config" if llm_key else "missing"
+    llm_model = get_llm_model()
 
     if config.get("use_obsidian") and vault:
         memory_dir = Path(vault) / "Memory" / "Agent-Mem"
@@ -1402,8 +1478,9 @@ def status():
         _echo(f"Graph output   : {'yes' if graph_ready else 'no'}")
         _echo(f"Graph docs     : {graph_docs}")
         _echo("Graph command  : agent-mem graph build")
-        _echo(f"Groq ready     : {groq_configured} ({groq_source})")
-        _echo(f"Groq model     : {groq_model}")
+        _echo(f"LLM provider   : {provider}")
+        _echo(f"LLM ready      : {llm_configured} ({llm_source})")
+        _echo(f"LLM model      : {llm_model}")
         return
 
     fallback_file = project_root / ".agent-memory" / "memory.md"
@@ -1418,8 +1495,9 @@ def status():
     _echo(f"Graph output   : {'yes' if graph_ready else 'no'}")
     _echo(f"Graph docs     : {graph_docs}")
     _echo("Graph command  : agent-mem graph build")
-    _echo(f"Groq ready     : {groq_configured} ({groq_source})")
-    _echo(f"Groq model     : {groq_model}")
+    _echo(f"LLM provider   : {provider}")
+    _echo(f"LLM ready      : {llm_configured} ({llm_source})")
+    _echo(f"LLM model      : {llm_model}")
 
 
 @app.command("tui")

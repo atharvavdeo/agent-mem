@@ -3,6 +3,8 @@ from pathlib import Path
 import re
 
 from .config import get_config
+from .engineering_store import atomic_write, redact
+from .file_lock import locked
 
 
 FALLBACK_DIR_NAME = ".agent-memory"
@@ -64,7 +66,14 @@ def _slug(text: str) -> str:
 
 
 def _extract_file_links(summary: str) -> list[str]:
-    matches = re.findall(r"(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9_]+", summary)
+    # Explicit file entries are authoritative, including absolute paths and
+    # paths containing spaces. Do not re-infer fragments from their prose.
+    file_section = _extract_section_text(summary, "Files changed")
+    if file_section:
+        matches = [line.strip().removeprefix("- ").removeprefix("* ").strip("`")
+                   for line in file_section.splitlines() if line.strip()]
+    else:
+        matches = re.findall(r"/?(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+\.[A-Za-z0-9_]+", summary)
     seen: set[str] = set()
     links: list[str] = []
     for match in matches:
@@ -91,6 +100,10 @@ def _extract_section_items(summary: str, heading: str) -> list[str]:
             item = stripped[1:].strip()
             if item:
                 items.append(item)
+    # Summaries may use paragraphs instead of bullets. Preserve that evidence
+    # rather than projecting a populated section as "None recorded".
+    if not items and match.group(1).strip():
+        items.append(match.group(1).strip())
     return items[:10]
 
 
@@ -103,7 +116,7 @@ def _extract_section_text(summary: str, heading: str) -> str:
 
 
 def _session_note_name(project_name: str, moment: datetime) -> str:
-    return f"{_slug(project_name)}-{moment.strftime('%Y-%m-%d_%H-%M')}-session.md"
+    return f"{_slug(project_name)}-{moment.strftime('%Y-%m-%d_%H-%M-%S-%f')}-session.md"
 
 
 def _collect_active_sections(summary: str) -> dict[str, list[str] | str]:
@@ -298,7 +311,7 @@ def _update_obsidian_index(project_name: str, session_note_name: str, project_ro
             ordered_links.append(link)
 
     content += "\n".join(f"- {link}" for link in ordered_links[:25]) + "\n"
-    index_path.write_text(content, encoding="utf-8")
+    atomic_write(index_path, content)
 
 
 def initialize_storage(project_root: Path | None = None) -> list[Path]:
@@ -339,20 +352,26 @@ def initialize_storage(project_root: Path | None = None) -> list[Path]:
     return created
 
 
-def write_active_context(project_name: str, summary: str, project_root: Path | None = None) -> str:
+def _write_active_context_unlocked(project_name: str, summary: str, project_root: Path | None = None) -> str:
     resolved_project_root = (project_root or Path.cwd()).resolve()
     filepath = get_active_context_file(resolved_project_root)
     moment = _timestamp()
 
     if is_obsidian_enabled():
         content = _active_context_body(project_name, summary, moment)
-        filepath.write_text(content, encoding="utf-8")
+        atomic_write(filepath, content)
         vault = Path(get_config()["obsidian_vault"])
         return str(filepath.relative_to(vault))
 
     content = _fallback_active_context_body(project_name, summary, moment)
-    filepath.write_text(content, encoding="utf-8")
+    atomic_write(filepath, content)
     return str(filepath.relative_to(resolved_project_root))
+
+
+def write_active_context(project_name: str, summary: str, project_root: Path | None = None) -> str:
+    root = (project_root or Path.cwd()).resolve()
+    with locked(get_memory_dir(root) / ".legacy-write.lock"):
+        return _write_active_context_unlocked(project_name, redact(summary), root)
 
 
 def read_active_context(project_root: Path | None = None) -> str:
@@ -430,17 +449,17 @@ Project: {project_name}
 """
 
 
-def write_session_summary(project_name: str, summary: str, project_root: Path | None = None) -> str:
+def _write_session_summary_unlocked(project_name: str, summary: str, project_root: Path | None = None) -> str:
     resolved_project_root = (project_root or Path.cwd()).resolve()
     memory_dir = get_memory_dir(resolved_project_root)
     moment = _timestamp()
-    write_active_context(project_name, summary, resolved_project_root)
+    _write_active_context_unlocked(project_name, summary, resolved_project_root)
 
     if is_obsidian_enabled():
         session_name = _session_note_name(project_name, moment)
         filepath = memory_dir / session_name
         content = _obsidian_note(project_name, summary, moment)
-        filepath.write_text(content, encoding="utf-8")
+        atomic_write(filepath, content)
         _update_obsidian_index(project_name, session_name, resolved_project_root)
         vault = Path(get_config()["obsidian_vault"])
         return str(filepath.relative_to(vault))
@@ -448,10 +467,16 @@ def write_session_summary(project_name: str, summary: str, project_root: Path | 
     filepath = get_fallback_memory_file(resolved_project_root)
     entry = _session_block(project_name, summary).strip() + "\n"
     if filepath.exists():
-        filepath.write_text(filepath.read_text(encoding="utf-8") + "\n" + entry, encoding="utf-8")
+        atomic_write(filepath, filepath.read_text(encoding="utf-8") + "\n" + entry)
     else:
-        filepath.write_text("# Agent Memory\n\n" + entry, encoding="utf-8")
+        atomic_write(filepath, "# Agent Memory\n\n" + entry)
     return str(filepath.relative_to(resolved_project_root))
+
+
+def write_session_summary(project_name: str, summary: str, project_root: Path | None = None) -> str:
+    root = (project_root or Path.cwd()).resolve()
+    with locked(get_memory_dir(root) / ".legacy-write.lock"):
+        return _write_session_summary_unlocked(project_name, redact(summary), root)
 
 
 def list_recent_session_files(

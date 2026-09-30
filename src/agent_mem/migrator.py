@@ -7,7 +7,8 @@ import json
 import re
 from typing import Any
 
-from .config import get_config, get_groq_api_key
+from .config import get_config, get_llm_api_key
+from .llm import complete_chat
 from .memory import initialize_storage, write_session_summary
 
 try:
@@ -710,17 +711,12 @@ class ContextMigrator:
     def generate_handoff_prompt(self, summary: str, sessions: list[ChatSession]) -> str:
         fallback_prompt = self._fallback_handoff_prompt(summary, sessions)
 
-        api_key = get_groq_api_key()
+        api_key = get_llm_api_key()
         if not api_key:
             return fallback_prompt
 
-        model = get_config().get("groq_model") or "llama-3.3-70b-versatile"
         try:
-            from groq import Groq
-
-            client = Groq(api_key=api_key)
-            completion = client.chat.completions.create(
-                model=model,
+            candidate = complete_chat(
                 temperature=0.2,
                 messages=[
                     {
@@ -739,7 +735,6 @@ class ContextMigrator:
                     },
                 ],
             )
-            candidate = (completion.choices[0].message.content or "").strip()
             return candidate or fallback_prompt
         except Exception:
             return fallback_prompt

@@ -25,7 +25,10 @@ DEFAULT_CONFIG = {
     "use_obsidian": False,
     "obsidian_vault": None,
     "groq_api_key": None,
-    "groq_model": "llama-3.3-70b-versatile",
+    "groq_model": "openai/gpt-oss-120b",
+    "llm_provider": "groq",
+    "cerebras_api_key": None,
+    "cerebras_model": "qwen-3.8-27b",
 }
 
 
@@ -51,6 +54,11 @@ def _normalize_config(config: dict) -> dict:
     model = normalized.get("groq_model")
     if isinstance(model, str) and not model.strip():
         normalized["groq_model"] = DEFAULT_CONFIG["groq_model"]
+
+    for field in ("cerebras_api_key", "cerebras_model"):
+        value = normalized.get(field)
+        if isinstance(value, str):
+            normalized[field] = value.strip() or DEFAULT_CONFIG[field]
 
     return normalized
 
@@ -95,3 +103,20 @@ def get_groq_api_key() -> str | None:
     if env_key:
         return env_key
     return get_config().get("groq_api_key")
+
+
+def get_llm_provider() -> str:
+    provider = (os.environ.get("AGENT_MEM_LLM_PROVIDER") or get_config().get("llm_provider") or "groq").strip().lower()
+    if provider not in {"groq", "cerebras"}:
+        raise ValueError("llm_provider must be groq or cerebras")
+    return provider
+
+
+def get_llm_api_key(provider: str | None = None) -> str | None:
+    provider = provider or get_llm_provider()
+    return os.environ.get(f"{provider.upper()}_API_KEY", "").strip() or get_config().get(f"{provider}_api_key")
+
+
+def get_llm_model(provider: str | None = None) -> str:
+    provider = provider or get_llm_provider()
+    return os.environ.get("AGENT_MEM_LLM_MODEL", "").strip() or get_config().get(f"{provider}_model") or ""
