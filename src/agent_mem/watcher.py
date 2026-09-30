@@ -8,10 +8,11 @@ import time
 from typing import Callable
 
 from .config import get_config, get_groq_api_key
+from .llm import complete_chat
 from .memory import get_active_context_file, get_fallback_memory_file, get_handoff_outbox_file, is_obsidian_enabled, list_recent_session_files
 
 
-DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
 
 IGNORED_PARTS = {
     ".git",
@@ -259,61 +260,45 @@ def generate_dry_run_prompt(trigger: WatchTrigger) -> str:
 
 
 def generate_handoff_prompt(trigger: WatchTrigger) -> str:
-    config = get_config()
-    model = config.get("groq_model") or DEFAULT_GROQ_MODEL
-    client = _groq_client()
-    try:
-        completion = client.chat.completions.create(
-            model=model,
-            temperature=0.1,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You compress active coding work into a strict structured digest for an IDE handoff generator. "
-                        "Do not write a user-facing explanation. "
-                        "Do not write a final prompt. "
-                        "Return only markdown with exactly these sections in this order:\n"
-                        "## Current Task\n"
-                        "## Key Decisions\n"
-                        "## Changed Files\n"
-                        "## Blockers\n"
-                        "## Next Step\n"
-                        "## Context Window Risk\n\n"
-                        "Rules:\n"
-                        "- Use bullet lists for Key Decisions, Changed Files, and Blockers.\n"
-                        "- Be factual and implementation-oriented.\n"
-                        "- Keep each bullet short.\n"
-                        "- Prefer file paths and explicit decisions over vague summaries.\n"
-                        "- If something is unknown, say so briefly instead of inventing it."
-                    ),
-                },
-                {
-                    "role": "user",
-                    "content": (
-                        f"Project: {trigger.project_name}\n"
-                        f"Quiet window after work: {trigger.quiet_seconds}s\n"
-                        f"Changed files ({len(trigger.changed_files)}):\n- " + "\n- ".join(trigger.changed_files[:25]) + "\n\n"
-                        f"Git diff total changed lines: {trigger.diff_lines}\n"
-                        f"Git diff stats:\n{trigger.diff_stat}\n\n"
-                        f"Current active context:\n{trigger.active_context or 'None'}\n\n"
-                        f"Recent memory excerpt:\n{trigger.recent_memory or 'None'}\n\n"
-                        f"Git diff excerpt:\n{trigger.diff_excerpt}\n\n"
-                        "Return only the structured digest sections requested in the system message."
-                    ),
-                },
-            ],
-        )
-    except Exception as exc:
-        message = str(exc)
-        lowered = message.lower()
-        if "invalid api key" in lowered or "expired_api_key" in lowered or "401" in lowered:
-            raise RuntimeError("Groq authentication failed. Check GROQ_API_KEY or run `agent-mem configure-groq` with a valid key.") from exc
-        if "connection error" in lowered or "connecterror" in lowered or "timed out" in lowered:
-            raise RuntimeError("Groq request failed due to a network problem. Retry when network access is available.") from exc
-        raise RuntimeError(f"Groq handoff generation failed: {message}") from exc
-
-    digest_text = (completion.choices[0].message.content or "").strip()
+    digest_text = complete_chat(
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You compress active coding work into a strict structured digest for an IDE handoff generator. "
+                    "Do not write a user-facing explanation. "
+                    "Do not write a final prompt. "
+                    "Return only markdown with exactly these sections in this order:\n"
+                    "## Current Task\n"
+                    "## Key Decisions\n"
+                    "## Changed Files\n"
+                    "## Blockers\n"
+                    "## Next Step\n"
+                    "## Context Window Risk\n\n"
+                    "Rules:\n"
+                    "- Use bullet lists for Key Decisions, Changed Files, and Blockers.\n"
+                    "- Be factual and implementation-oriented.\n"
+                    "- Keep each bullet short.\n"
+                    "- Prefer file paths and explicit decisions over vague summaries.\n"
+                    "- If something is unknown, say so briefly instead of inventing it."
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Project: {trigger.project_name}\n"
+                    f"Quiet window after work: {trigger.quiet_seconds}s\n"
+                    f"Changed files ({len(trigger.changed_files)}):\n- " + "\n- ".join(trigger.changed_files[:25]) + "\n\n"
+                    f"Git diff total changed lines: {trigger.diff_lines}\n"
+                    f"Git diff stats:\n{trigger.diff_stat}\n\n"
+                    f"Current active context:\n{trigger.active_context or 'None'}\n\n"
+                    f"Recent memory excerpt:\n{trigger.recent_memory or 'None'}\n\n"
+                    f"Git diff excerpt:\n{trigger.diff_excerpt}\n\n"
+                    "Return only the structured digest sections requested in the system message."
+                ),
+            },
+        ],
+    )
     digest = _parse_digest(digest_text, trigger)
     return _format_final_handoff_prompt(trigger, digest)
 

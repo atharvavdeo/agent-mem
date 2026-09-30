@@ -46,10 +46,43 @@ Automatic context compression and persistent memory for AI coding agents.
 
 ---
 
+## Release qualification
+
+The current source is **0.8.0rc1**, a release candidate targeting 0.8.0.
+Local macOS package/runtime checks have passed on Python 3.10 and 3.13.
+Successful live provider generation and a full Cursor IDE lifecycle remain release
+qualification requirements. The latest evidence is recorded in
+[verification/runs/LATEST_CHECKS.md](verification/runs/LATEST_CHECKS.md).
+
+Engineering memory supports a local filesystem on one host. SQLite/WAL databases
+must not be placed on mounted network storage or synchronized between hosts while
+in use. For cloud-synchronized or network-hosted code, set `AGENT_MEM_STORAGE_DIR`
+to an absolute local, unsynchronized directory in the environments that launch
+CLI, MCP, and Cursor. Existing storage is not automatically moved or imported.
+Native Windows Cursor hook installation is currently rejected before mutation;
+Windows runtime support and mounted-network durability are not qualified.
+Generated Cursor hooks bind to the local Python environment: regenerate them on
+each machine. Cursor cloud-agent portability is not qualified.
+
+## Engineering Memory (unreleased source changes)
+
+Five sequential additions are implemented in source: native Cursor lifecycle capture, evidence freshness checks, bounded task context, isolated concurrent sessions/worktrees, and review/failed-approach memory. See [implementation and operational verification](docs/ENGINEERING_MEMORY.md) for commands, storage behavior and qualification limits.
+
+```bash
+agent-mem setup-cursor
+agent-mem engineering context "current goal" --session feature-a
+agent-mem engineering check --session feature-a
+agent-mem engineering prepare-next --session feature-a
+```
+
+The native Cursor launcher was exercised directly; a live Cursor conversation has not been verified on this host. Graph integration was exercised against installed code-review-graph 2.3.8. Optional extras: `context` for tiktoken and `intelligence` for code-review-graph. Private MCP memory requires the returned durable session handle after reconnecting; selected records can be explicitly shared.
+
+---
+
 ## Core Features
 
 - Smart `watch` mode with file + git + idle detection
-- One-paste handoff prompts (Groq-powered, optional)
+- One-paste handoff prompts (Groq or Cerebras, optional)
 - Cross-IDE context migration (`agent-mem migrate`) for Cursor, Claude (VS Code), and OpenCode
 - Obsidian-first storage with wiki-links and YAML frontmatter
 - Local fallback mode (`.agent-memory/`) when Obsidian is not configured
@@ -90,7 +123,7 @@ agent-mem migrate --dry-run cursor .
 agent-mem watch               # start automatic handoff mode
 ```
 
-After initialization, use `agent-mem status` to verify storage mode, graph output readiness, and Groq configuration status.
+After initialization, use `agent-mem status` to verify storage mode, graph output readiness, and selected provider configuration status.
 
 ---
 
@@ -175,7 +208,7 @@ agent-mem graph build --compact \
   --exclude-file-pattern "**/migrations/*.py" \
   --exclude-file-pattern "**/node_modules/*"
 
-# Semantic pass (requires Groq key)
+# Semantic pass (requires a key for the selected provider)
 agent-mem graph build --enrich
 ```
 
@@ -184,13 +217,13 @@ agent-mem graph build --enrich
 | Flag | Description |
 | --- | --- |
 | `--compact` | Trims long concept/function lists, keeps dashboard/report complete, and writes full lists to `agent-mem-output/Full/` |
-| `--enrich` | Adds inferred concepts/relationships via Groq; deterministic graph output is still generated if enrichment fails |
+| `--enrich` | Adds inferred concepts/relationships via Groq or Cerebras; deterministic graph output is still generated if enrichment fails |
 | `--exclude-file-pattern` | Excludes files by glob pattern; repeatable and useful for tests/generated/vendor paths |
 
 Flag behavior details:
 
 - `--compact` is ideal for very large repos where full notes are noisy.
-- `--enrich` does not block graph generation; if Groq is unavailable you still get deterministic notes plus actionable diagnostics.
+- `--enrich` does not block graph generation; if the selected provider is unavailable you still get deterministic notes plus actionable diagnostics.
 - Multiple `--exclude-file-pattern` values are combined.
 - Patterns match both full relative paths and file names.
 
@@ -206,16 +239,43 @@ Flag behavior details:
 Open `agent-mem-output/Index.md` in Obsidian for full navigation and backlinks.
 The dashboard includes quick navigation links, operational health status, and a direct link back to project root docs.
 
+### Cerebras support
+
+Groq remains the default provider and retains saved configuration. New configurations
+use `openai/gpt-oss-120b`; explicit saved models are preserved. Older Llama model
+IDs can require enterprise access; select a currently available model explicitly
+if the provider reports it unavailable. Select Cerebras
+for watch handoffs, full migration handoffs, and graph enrichment:
+
+```bash
+# Set CEREBRAS_API_KEY in your shell using your local secret manager.
+agent-mem configure-cerebras --model qwen-3.8-27b --use-env
+agent-mem status
+```
+
+`--use-env` saves the provider and model selection without saving the environment
+credential. Omit it to enter and save a key through a hidden prompt. Model IDs
+are explicit; unavailable models produce an actionable error and are never
+silently replaced. Graph enrichment keeps deterministic output on provider
+failure; migration keeps its existing deterministic handoff fallback.
+
+For a temporary selection without changing configuration, set
+`AGENT_MEM_LLM_PROVIDER=cerebras` and optionally `AGENT_MEM_LLM_MODEL`.
+Cerebras uses `CEREBRAS_API_KEY`; Groq uses `GROQ_API_KEY`. Environment credentials
+and model overrides take precedence over saved values. Run `configure-groq` to
+select Groq again; unset any provider/model environment overrides first.
+
 ### Enrich Troubleshooting
 
 If `--enrich` is requested but no inferred output is added, the CLI now prints actionable guidance.
 
 Typical causes and fixes:
 
-- Missing key: run `agent-mem configure-groq` or export `GROQ_API_KEY`.
+- Missing key: configure the selected provider or set `GROQ_API_KEY` / `CEREBRAS_API_KEY`.
 - Invalid key/auth failure: reconfigure key and run `agent-mem status`.
-- Missing client package: install `groq` (`pip install groq`).
-- Rate limited: retry after a short delay.
+- Missing client package: reinstall the main package, which includes both provider SDKs.
+- Rate limited: retry after the provider limit resets.
+- Payment required (402): enable billing or quota in the Cerebras account before retrying.
 
 ### Large Project Performance
 
@@ -313,8 +373,9 @@ agent-mem migrate --full cursor .
 | `agent-mem setup` | Re-run instruction + MCP config setup for current project | `agent-mem setup` |
 | `agent-mem setup-vscode` | Write `.vscode/mcp.json` with detected/selected Python interpreter | `agent-mem setup-vscode --python /path/to/python3` |
 | `agent-mem print-mcp-json` | Print MCP JSON block for manual paste into IDE config | `agent-mem print-mcp-json` |
-| `agent-mem configure-groq` | Save Groq API key and optional model | `agent-mem configure-groq --model llama-3.3-70b-versatile` |
-| `agent-mem status` | Show storage mode, graph readiness, and Groq status | `agent-mem status` |
+| `agent-mem configure-groq` | Save Groq API key and optional model | `agent-mem configure-groq --model openai/gpt-oss-120b` |
+| `agent-mem configure-cerebras` | Select Cerebras with an environment credential | `agent-mem configure-cerebras --model qwen-3.8-27b --use-env` |
+| `agent-mem status` | Show storage mode, graph readiness, and selected provider status | `agent-mem status` |
 
 ### Memory and Continuity
 
@@ -379,7 +440,7 @@ If Obsidian is unavailable, memory is written to:
 
 ## Troubleshooting
 
-- If `--enrich` does not apply inferred content, run `agent-mem status` and verify Groq key/model configuration.
+- If `--enrich` does not apply inferred content, run `agent-mem status` and verify the selected provider key/model configuration.
 - If graph output is too large, use `--compact`.
 - For large repos, exclude low-value paths with repeatable `--exclude-file-pattern` options.
 

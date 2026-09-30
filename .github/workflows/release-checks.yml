@@ -1,0 +1,56 @@
+name: Release package checks
+on:
+  push:
+    branches: ['codex/release-qualification-*']
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'pyproject.toml'
+      - 'tests/fixtures/**'
+      - '.github/workflows/release-checks.yml'
+permissions:
+  contents: read
+jobs:
+  package-runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ['3.10', '3.13']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Build distributions
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+      - name: Install built wheel and check dependencies
+        shell: bash
+        run: |
+          python -m pip install --force-reinstall dist/*.whl
+          python -m pip install 'easy-agent-mem[mcp,context,intelligence,multilang]==0.8.0rc1'
+          python -m pip check
+          python -m twine check dist/*
+      - name: Existing extraction benchmark and CLI
+        shell: bash
+        run: |
+          python -m agent_mem.cli --help
+          python -m agent_mem.cli configure-cerebras --help
+          python -m agent_mem.cli status
+          python -m agent_mem.cli graph benchmark --fixtures-dir tests/fixtures
+      - name: Local engineering storage operations
+        shell: bash
+        run: |
+          export AGENT_MEM_STORAGE_DIR="$RUNNER_TEMP/agent-mem-local-storage"
+          printf '%s\n' '{"kind":"constraint","text":"Preserve sourced evidence across restart.","source":"release CLI operation"}' | python -m agent_mem.cli engineering record --session release-operation
+          python -m agent_mem.cli engineering list --session release-operation
+          python -m agent_mem.cli engineering checkpoint --session release-operation
+          python -m agent_mem.cli engineering prepare-next --session release-operation
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.os }}-py${{ matrix.python }}
+          path: dist/*

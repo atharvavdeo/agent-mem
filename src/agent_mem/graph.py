@@ -12,7 +12,8 @@ import time
 import tokenize
 from typing import Any, Callable
 
-from .config import get_config, get_groq_api_key
+from .config import get_config, get_llm_api_key, get_llm_provider
+from .llm import complete_chat
 from . import lang_parsers
 from .memory import (
     get_active_context_file,
@@ -1607,34 +1608,14 @@ def _render_index(
     return "\n".join(lines)
 
 
-def _enrich_with_groq(
+def _enrich_with_llm(
     project_name: str,
     records: list[FileRecord],
     concepts: list[tuple[str, int]],
 ) -> tuple[list[tuple[str, int]], list[tuple[str, int]], list[str]]:
-    api_key = get_groq_api_key()
-    if not api_key:
-        return (
-            [],
-            [],
-            [
-                "LLM enrichment skipped: GROQ_API_KEY is missing. Run 'agent-mem configure-groq' or set GROQ_API_KEY in your environment."
-            ],
-        )
-
-    try:
-        from groq import Groq
-    except Exception:
-        return (
-            [],
-            [],
-            [
-                "LLM enrichment skipped: Groq client is not installed. Install with 'pip install groq' and retry --enrich."
-            ],
-        )
-
-    model = get_config().get("groq_model") or "llama-3.3-70b-versatile"
-    client = Groq(api_key=api_key)
+    provider = get_llm_provider()
+    if not get_llm_api_key():
+        return [], [], [f"LLM enrichment skipped: {provider.upper()}_API_KEY is missing. Run 'agent-mem configure-{provider}' or set the environment variable."]
 
     seed_classes = [cls.qualified_name for record in records for cls in record.classes[:3]][:12]
     seed_functions = [fn.qualified_name for record in records for fn in record.functions[:3]][:20]
@@ -1655,9 +1636,7 @@ def _enrich_with_groq(
     )
 
     try:
-        completion = client.chat.completions.create(
-            model=model,
-            temperature=0.1,
+        content = complete_chat(
             messages=[
                 {
                     "role": "system",
@@ -1670,23 +1649,8 @@ def _enrich_with_groq(
             ],
         )
     except Exception as exc:
-        error_text = _clean_line(str(exc)).lower()
-        if any(token in error_text for token in ("401", "unauthorized", "authentication", "api key", "forbidden")):
-            return (
-                [],
-                [],
-                [
-                    "LLM enrichment skipped: Groq authentication failed. Re-run 'agent-mem configure-groq' with a valid key, then run 'agent-mem status'."
-                ],
-            )
-        if "429" in error_text or "rate" in error_text:
-            return [], [], ["LLM enrichment skipped: Groq rate limit reached. Retry in a few minutes."]
-        if "model" in error_text and "not" in error_text:
-            return [], [], ["LLM enrichment skipped: configured Groq model was not found. Update it with 'agent-mem configure-groq'."]
+        return [], [], [f"LLM enrichment skipped: {_shorten(str(exc), 240)}"]
 
-        return [], [], [f"LLM enrichment skipped after Groq error: {_shorten(str(exc), 240)}"]
-
-    content = (completion.choices[0].message.content or "").strip()
     parsed_concepts = _parse_inferred_items(_extract_section_items(content, ("Concepts",)), default_confidence=70)
     parsed_relationships = _parse_inferred_items(
         _extract_section_items(content, ("Relationships",)),
@@ -1697,6 +1661,9 @@ def _enrich_with_groq(
 
     return parsed_concepts[:20], parsed_relationships[:20], ["LLM enrichment added inferred concepts and relationships."]
 
+
+
+_enrich_with_groq = _enrich_with_llm
 
 def build_graph(
     project_root: Path | None = None,
@@ -1866,7 +1833,7 @@ def build_graph(
 
     llm_relationships: list[tuple[str, int]] = []
     if enrich:
-        llm_concepts, llm_relationships, enrich_notes = _enrich_with_groq(project_name, records, concepts)
+        llm_concepts, llm_relationships, enrich_notes = _enrich_with_llm(project_name, records, concepts)
         notes.extend(enrich_notes)
         if llm_concepts or llm_relationships:
             enrichment_applied = True

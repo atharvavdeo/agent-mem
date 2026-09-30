@@ -19,7 +19,7 @@ from textual.widgets import (
     TabPane,
 )
 
-from .config import get_config, get_groq_api_key
+from .config import get_config, get_llm_api_key, get_llm_model, get_llm_provider
 from .memory import (
     get_active_context_file,
     get_fallback_memory_file,
@@ -38,7 +38,7 @@ def _project_name() -> str:
 
 
 class StatusPanel(Static):
-    """Shows storage mode, Groq status, and recent sessions."""
+    """Shows storage mode, selected provider status, and recent sessions."""
 
     DEFAULT_CSS = """
     StatusPanel {
@@ -69,9 +69,9 @@ class StatusPanel(Static):
             if not mem_file.exists():
                 storage += " [no file yet]"
 
-        # Groq
-        groq_key = get_groq_api_key()
-        groq_status = "configured" if groq_key else "not configured (watch mode disabled)"
+        # Selected provider
+        llm_key = get_llm_api_key()
+        llm_status = "configured" if llm_key else "not configured (watch mode disabled)"
 
         # Active context
         active_file = get_active_context_file(root)
@@ -81,7 +81,8 @@ class StatusPanel(Static):
             f"**Project:** {project_name}",
             f"**Root:** {root}",
             f"**Storage:** {storage}",
-            f"**Groq API:** {groq_status}",
+            f"**LLM provider:** {get_llm_provider()} ({llm_status})",
+            f"**LLM model:** {get_llm_model()}",
             f"**Active context:** {active_status}",
         ]
 
