@@ -42,14 +42,63 @@ Automatic context compression and persistent memory for AI coding agents.
 | Continue.dev | IDE context window | Partial | ❌ | ❌ | Partial | ✅ | ❌ |
 | Aider | Context management | Partial | ❌ | ❌ | Partial | ✅ | ❌ |
 
-**Key differentiators**: agent-mem is the only system that enforces memory loading (MCP session gate + Claude Code `UserPromptSubmit` hook), extracts call graphs from code, and ships a precision/recall benchmark for its own detection.
+**Key capabilities**: memory-loading reminders through MCP and Claude Code hooks, sourced engineering decisions, scoped session continuity, code graphs, and an extraction benchmark.
+
+---
+
+## Version 0.8.0
+
+The source version is **0.8.0**. This update is committed to GitHub; no GitHub
+release, version tag, or PyPI publication has been created for it. The standard
+PyPI install command installs the published package, which may be older.
+
+Build and installed runtime checks passed locally on Python 3.10 and 3.13.
+The previous runtime candidate passed six CI jobs across Linux, macOS and Windows.
+Groq handoff, graph enrichment and migration generation passed live checks.
+All seven configured Cursor events were observed collectively across desktop
+3.22.12 and CLI 2026.09.28-64d2043 with durable checkpoints; each event was not
+independently verified on both clients. These checks do not establish production
+load capacity, long-term reliability or model-level retrieval quality.
+
+Groq remains the default provider. Cerebras support is optional; live generation
+was deferred after HTTP 402 and is not a requirement for this update.
+See the [feature guide](docs/FEATURES.md) and [0.8.0 change notes](docs/releases/v0.8.0.md).
+
+Engineering memory supports a local filesystem on one host. SQLite/WAL databases
+must not be placed on mounted network storage or synchronized between hosts while
+in use. For cloud-synchronized or network-hosted code, set `AGENT_MEM_STORAGE_DIR`
+to an absolute local, unsynchronized directory in the environments that launch
+CLI, MCP, and Cursor. Existing storage is not automatically moved or imported.
+Native Windows Cursor hook installation is currently rejected before mutation;
+Windows runtime support and mounted-network durability are not qualified.
+Generated Cursor hooks bind to the local Python environment: regenerate them on
+each machine. Cursor cloud-agent portability is not qualified.
+
+## Engineering Memory in 0.8.0
+
+Five sequential additions are implemented in source: native Cursor lifecycle capture, evidence freshness checks, bounded task context, isolated concurrent sessions/worktrees, and review/failed-approach memory. See [implementation and operational verification](docs/ENGINEERING_MEMORY.md) for commands, storage behavior and qualification limits.
+
+```bash
+agent-mem setup-cursor
+agent-mem engineering context "current goal" --session feature-a
+agent-mem engineering check --session feature-a
+agent-mem engineering prepare-next --session feature-a
+```
+
+Native launchers and real Cursor desktop/CLI conversations were exercised. Graph integration was exercised against installed code-review-graph 2.3.9 (schema 13). Optional extras: `context` for tiktoken and `intelligence` for code-review-graph. Private MCP memory requires the returned durable session handle after reconnecting; selected records can be explicitly shared.
 
 ---
 
 ## Core Features
 
+- Sourced decisions, constraints and blockers with file-hash evidence and stale warnings
+- Bounded task context with citations, mandatory-record retention and explicit overflow
+- Private repository/worktree/branch/session memory with durable MCP reconnect handles
+- Cursor lifecycle capture and checkpoints at stop, session end and compaction
+- Review findings, reasoned dismissals, scoped verification and failed-approach history
+- Explicit sharing and Markdown/Obsidian exports
 - Smart `watch` mode with file + git + idle detection
-- One-paste handoff prompts (Groq-powered, optional)
+- One-paste handoff prompts (Groq or Cerebras, optional)
 - Cross-IDE context migration (`agent-mem migrate`) for Cursor, Claude (VS Code), and OpenCode
 - Obsidian-first storage with wiki-links and YAML frontmatter
 - Local fallback mode (`.agent-memory/`) when Obsidian is not configured
@@ -90,7 +139,7 @@ agent-mem migrate --dry-run cursor .
 agent-mem watch               # start automatic handoff mode
 ```
 
-After initialization, use `agent-mem status` to verify storage mode, graph output readiness, and Groq configuration status.
+After initialization, use `agent-mem status` to verify storage mode, graph output readiness, and selected provider configuration status.
 
 ---
 
@@ -175,7 +224,7 @@ agent-mem graph build --compact \
   --exclude-file-pattern "**/migrations/*.py" \
   --exclude-file-pattern "**/node_modules/*"
 
-# Semantic pass (requires Groq key)
+# Semantic pass (requires a key for the selected provider)
 agent-mem graph build --enrich
 ```
 
@@ -184,13 +233,13 @@ agent-mem graph build --enrich
 | Flag | Description |
 | --- | --- |
 | `--compact` | Trims long concept/function lists, keeps dashboard/report complete, and writes full lists to `agent-mem-output/Full/` |
-| `--enrich` | Adds inferred concepts/relationships via Groq; deterministic graph output is still generated if enrichment fails |
+| `--enrich` | Adds inferred concepts/relationships via Groq or Cerebras; deterministic graph output is still generated if enrichment fails |
 | `--exclude-file-pattern` | Excludes files by glob pattern; repeatable and useful for tests/generated/vendor paths |
 
 Flag behavior details:
 
 - `--compact` is ideal for very large repos where full notes are noisy.
-- `--enrich` does not block graph generation; if Groq is unavailable you still get deterministic notes plus actionable diagnostics.
+- `--enrich` does not block graph generation; if the selected provider is unavailable you still get deterministic notes plus actionable diagnostics.
 - Multiple `--exclude-file-pattern` values are combined.
 - Patterns match both full relative paths and file names.
 
@@ -206,16 +255,43 @@ Flag behavior details:
 Open `agent-mem-output/Index.md` in Obsidian for full navigation and backlinks.
 The dashboard includes quick navigation links, operational health status, and a direct link back to project root docs.
 
+### Cerebras support
+
+Groq remains the default provider and retains saved configuration. New configurations
+use `openai/gpt-oss-120b`; explicit saved models are preserved. Older Llama model
+IDs can require enterprise access; select a currently available model explicitly
+if the provider reports it unavailable. Select Cerebras
+for watch handoffs, full migration handoffs, and graph enrichment:
+
+```bash
+# Set CEREBRAS_API_KEY in your shell using your local secret manager.
+agent-mem configure-cerebras --model qwen-3.8-27b --use-env
+agent-mem status
+```
+
+`--use-env` saves the provider and model selection without saving the environment
+credential. Omit it to enter and save a key through a hidden prompt. Model IDs
+are explicit; unavailable models produce an actionable error and are never
+silently replaced. Graph enrichment keeps deterministic output on provider
+failure; migration keeps its existing deterministic handoff fallback.
+
+For a temporary selection without changing configuration, set
+`AGENT_MEM_LLM_PROVIDER=cerebras` and optionally `AGENT_MEM_LLM_MODEL`.
+Cerebras uses `CEREBRAS_API_KEY`; Groq uses `GROQ_API_KEY`. Environment credentials
+and model overrides take precedence over saved values. Run `configure-groq` to
+select Groq again; unset any provider/model environment overrides first.
+
 ### Enrich Troubleshooting
 
 If `--enrich` is requested but no inferred output is added, the CLI now prints actionable guidance.
 
 Typical causes and fixes:
 
-- Missing key: run `agent-mem configure-groq` or export `GROQ_API_KEY`.
+- Missing key: configure the selected provider or set `GROQ_API_KEY` / `CEREBRAS_API_KEY`.
 - Invalid key/auth failure: reconfigure key and run `agent-mem status`.
-- Missing client package: install `groq` (`pip install groq`).
-- Rate limited: retry after a short delay.
+- Missing client package: reinstall the main package, which includes both provider SDKs.
+- Rate limited: retry after the provider limit resets.
+- Payment required (402): enable billing or quota in the Cerebras account before retrying.
 
 ### Large Project Performance
 
@@ -311,10 +387,12 @@ agent-mem migrate --full cursor .
 | --- | --- | --- |
 | `agent-mem init` | Interactive first-time setup for storage + IDE instruction files + MCP config hints | `agent-mem init` |
 | `agent-mem setup` | Re-run instruction + MCP config setup for current project | `agent-mem setup` |
+| `agent-mem setup-cursor` | Install additive native Cursor lifecycle hooks | `agent-mem setup-cursor` |
 | `agent-mem setup-vscode` | Write `.vscode/mcp.json` with detected/selected Python interpreter | `agent-mem setup-vscode --python /path/to/python3` |
 | `agent-mem print-mcp-json` | Print MCP JSON block for manual paste into IDE config | `agent-mem print-mcp-json` |
-| `agent-mem configure-groq` | Save Groq API key and optional model | `agent-mem configure-groq --model llama-3.3-70b-versatile` |
-| `agent-mem status` | Show storage mode, graph readiness, and Groq status | `agent-mem status` |
+| `agent-mem configure-groq` | Save Groq API key and optional model | `agent-mem configure-groq --model openai/gpt-oss-120b` |
+| `agent-mem configure-cerebras` | Select Cerebras with an environment credential | `agent-mem configure-cerebras --model qwen-3.8-27b --use-env` |
+| `agent-mem status` | Show storage mode, graph readiness, and selected provider status | `agent-mem status` |
 
 ### Memory and Continuity
 
@@ -324,6 +402,18 @@ agent-mem migrate --full cursor .
 | `agent-mem checkpoint` | Update compact active handoff context file | `agent-mem checkpoint --stdin` |
 | `agent-mem prepare-next` | Print starter block for a fresh follow-up chat | `agent-mem prepare-next` |
 | `agent-mem recall <query>` | Search saved memory for relevant context | `agent-mem recall "current blockers"` |
+
+### Engineering Memory
+
+| Command | Description | Example |
+| --- | --- | --- |
+| `agent-mem engineering record` | Store a sourced decision, constraint or blocker from JSON stdin | `agent-mem engineering record --session feature-a < decision.json` |
+| `agent-mem engineering check` | Flag changed evidence and optional graph impact | `agent-mem engineering check --session feature-a --changed src/app.py` |
+| `agent-mem engineering context` | Retrieve cited records within a declared budget | `agent-mem engineering context "current goal" --session feature-a --token-budget 2048` |
+| `agent-mem engineering review` | Record findings, dismissals, fixes and verification from JSON stdin | `agent-mem engineering review --session feature-a < review.json` |
+| `agent-mem engineering reviews` | Retrieve review history and failed approaches | `agent-mem engineering reviews --session feature-a --goal "storage"` |
+| `agent-mem engineering share` | Explicitly share a private record across linked worktrees | `agent-mem engineering share RECORD_ID --session feature-a` |
+| `agent-mem engineering prepare-next` | Print a durable session handoff | `agent-mem engineering prepare-next --session feature-a` |
 
 ### Migration
 
@@ -379,13 +469,20 @@ If Obsidian is unavailable, memory is written to:
 
 ## Troubleshooting
 
-- If `--enrich` does not apply inferred content, run `agent-mem status` and verify Groq key/model configuration.
+- If `--enrich` does not apply inferred content, run `agent-mem status` and verify the selected provider key/model configuration.
 - If graph output is too large, use `--compact`.
 - For large repos, exclude low-value paths with repeatable `--exclude-file-pattern` options.
 
 ---
 
-## What's Fixed in 0.7.2
+## What Changed in 0.8.0
+
+The five engineering-memory phases are implemented alongside optional Cerebras
+support, consistent local storage selection, improved credential redaction,
+graph schema-13 compatibility and Cursor prompt continuation fixes.
+See [the full feature guide](docs/FEATURES.md) for commands and limitations.
+
+## Previous Fixes in 0.7.2
 
 Ten reliability bugs fixed across the core modules.
 
