@@ -62,7 +62,7 @@ def redact(value: Any) -> Any:
         for token in secrets:
             if isinstance(token, str) and len(token) >= 4:
                 item = item.replace(token, '[REDACTED]')
-        item = re.sub(r'(?i)\b(?:csk-[A-Za-z0-9_-]{16,}|sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{16,}|pypi-[A-Za-z0-9_-]{16,})\b', '[REDACTED]', item)
+        item = re.sub(r'(?i)\b(?:gsk_[A-Za-z0-9_-]{16,}|csk-[A-Za-z0-9_-]{16,}|sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_]{16,}|pypi-[A-Za-z0-9_-]{16,})\b', '[REDACTED]', item)
         return re.sub(r'(?i)(\b(?:api[_-]?key|password|secret|access[_-]?token)\s*[:=]\s*)["\']?[^\s,"\']+', r'\1[REDACTED]', item)
     return scrub(value)
 
