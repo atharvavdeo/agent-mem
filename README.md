@@ -2,6 +2,7 @@
 
 ![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
 
+[![GitHub release](https://img.shields.io/github/v/release/atharvavdeo/agent-mem)](https://github.com/atharvavdeo/agent-mem/releases/latest)
 [![PyPI version](https://img.shields.io/pypi/v/easy-agent-mem?cacheSeconds=0)](https://pypi.org/project/easy-agent-mem/)
 [![Python version](https://img.shields.io/pypi/pyversions/easy-agent-mem)](https://pypi.org/project/easy-agent-mem/)
 [![License](https://img.shields.io/pypi/l/easy-agent-mem)](https://github.com/atharvavdeo/agent-mem/blob/main/LICENSE)
@@ -18,7 +19,7 @@
 
 Automatic context compression and persistent memory for AI coding agents.
 
-`agent-mem` helps you keep long coding sessions coherent by capturing decisions, session context, and code signals in structured memory notes. It also generates Obsidian-friendly project graph docs so you can navigate architecture, decisions, blockers, and recent context quickly.
+`agent-mem` saves coding decisions, constraints and session context so you can continue work across chats. Search previous decisions, check whether their supporting files have changed, and carry relevant context into your next session.
 
 ---
 
@@ -31,74 +32,17 @@ Automatic context compression and persistent memory for AI coding agents.
 
 ---
 
-## How agent-mem Differs
-
-| System | Focus | Code-aware | IDE Enforcement | Call Graph | Multi-language | Local-first | Benchmarked |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| **agent-mem** | Code session memory | ✅ | ✅ MCP gate + hooks | ✅ | ✅ Python, TS, JS | ✅ | ✅ P/R/F1 |
-| mem0 | NLP conversation memory | ❌ | ❌ | ❌ | ❌ | Partial | ✅ NLP tasks |
-| Zep | Conversation memory | ❌ | ❌ | ❌ | ❌ | ❌ | Limited |
-| MemGPT / Letta | General memory management | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ NLP tasks |
-| Continue.dev | IDE context window | Partial | ❌ | ❌ | Partial | ✅ | ❌ |
-| Aider | Context management | Partial | ❌ | ❌ | Partial | ✅ | ❌ |
-
-**Key capabilities**: memory-loading reminders through MCP and Claude Code hooks, sourced engineering decisions, scoped session continuity, code graphs, and an extraction benchmark.
-
----
-
-## Version 0.8.0
-
-The source version is **0.8.0**. This update is committed to GitHub; no GitHub
-release, version tag, or PyPI publication has been created for it. The standard
-PyPI install command installs the published package, which may be older.
-
-Build and installed runtime checks passed locally on Python 3.10 and 3.13.
-The previous runtime candidate passed six CI jobs across Linux, macOS and Windows.
-Groq handoff, graph enrichment and migration generation passed live checks.
-All seven configured Cursor events were observed collectively across desktop
-3.22.12 and CLI 2026.09.28-64d2043 with durable checkpoints; each event was not
-independently verified on both clients. These checks do not establish production
-load capacity, long-term reliability or model-level retrieval quality.
-
-Groq remains the default provider. Cerebras support is optional; live generation
-was deferred after HTTP 402 and is not a requirement for this update.
-See the [feature guide](docs/FEATURES.md) and [0.8.0 change notes](docs/releases/v0.8.0.md).
-
-Engineering memory supports a local filesystem on one host. SQLite/WAL databases
-must not be placed on mounted network storage or synchronized between hosts while
-in use. For cloud-synchronized or network-hosted code, set `AGENT_MEM_STORAGE_DIR`
-to an absolute local, unsynchronized directory in the environments that launch
-CLI, MCP, and Cursor. Existing storage is not automatically moved or imported.
-Native Windows Cursor hook installation is currently rejected before mutation;
-Windows runtime support and mounted-network durability are not qualified.
-Generated Cursor hooks bind to the local Python environment: regenerate them on
-each machine. Cursor cloud-agent portability is not qualified.
-
-## Engineering Memory in 0.8.0
-
-Five sequential additions are implemented in source: native Cursor lifecycle capture, evidence freshness checks, bounded task context, isolated concurrent sessions/worktrees, and review/failed-approach memory. See [implementation and operational verification](docs/ENGINEERING_MEMORY.md) for commands, storage behavior and qualification limits.
-
-```bash
-agent-mem setup-cursor
-agent-mem engineering context "current goal" --session feature-a
-agent-mem engineering check --session feature-a
-agent-mem engineering prepare-next --session feature-a
-```
-
-Native launchers and real Cursor desktop/CLI conversations were exercised. Graph integration was exercised against installed code-review-graph 2.3.9 (schema 13). Optional extras: `context` for tiktoken and `intelligence` for code-review-graph. Private MCP memory requires the returned durable session handle after reconnecting; selected records can be explicitly shared.
-
----
-
 ## Core Features
 
-- Sourced decisions, constraints and blockers with file-hash evidence and stale warnings
-- Bounded task context with citations, mandatory-record retention and explicit overflow
-- Private repository/worktree/branch/session memory with durable MCP reconnect handles
-- Cursor lifecycle capture and checkpoints at stop, session end and compaction
-- Review findings, reasoned dismissals, scoped verification and failed-approach history
-- Explicit sharing and Markdown/Obsidian exports
+- Save decisions, constraints and blockers with their sources and supporting files
+- Check saved decisions for changed or missing evidence
+- Retrieve relevant context with citations and a token budget
+- Keep memory separate across repositories, branches, worktrees and sessions
+- Resume sessions with durable handoffs and explicitly share selected records
+- Track review findings, fixes, verification results and failed approaches
+- Export structured memory to Markdown or Obsidian
 - Smart `watch` mode with file + git + idle detection
-- One-paste handoff prompts (Groq or Cerebras, optional)
+- One-paste handoff prompts (Groq-powered, optional)
 - Cross-IDE context migration (`agent-mem migrate`) for Cursor, Claude (VS Code), and OpenCode
 - Obsidian-first storage with wiki-links and YAML frontmatter
 - Local fallback mode (`.agent-memory/`) when Obsidian is not configured
@@ -110,7 +54,6 @@ Native launchers and real Cursor desktop/CLI conversations were exercised. Graph
 - **Benchmark command** — `graph benchmark` measures extraction Precision/Recall/F1 against ground truth
 - **Terminal UI** — `agent-mem tui` opens an interactive status/memory/benchmark dashboard
 - Incremental graph parse cache for faster rebuilds on unchanged files
-- Progress output for large project scans
 
 ---
 
@@ -118,6 +61,9 @@ Native launchers and real Cursor desktop/CLI conversations were exercised. Graph
 
 ```bash
 pip install easy-agent-mem
+
+# Install 0.8.0 from GitHub
+pip install "git+https://github.com/atharvavdeo/agent-mem.git@v0.8.0"
 ```
 
 Optional extras:
@@ -126,6 +72,7 @@ Optional extras:
 pip install 'easy-agent-mem[tui]'       # terminal UI (agent-mem tui)
 pip install 'easy-agent-mem[multilang]' # TypeScript/JavaScript extraction via tree-sitter
 pip install 'easy-agent-mem[mcp]'       # MCP server support
+pip install 'easy-agent-mem[context] @ git+https://github.com/atharvavdeo/agent-mem.git@v0.8.0' # token counting
 ```
 
 ---
@@ -139,7 +86,7 @@ agent-mem migrate --dry-run cursor .
 agent-mem watch               # start automatic handoff mode
 ```
 
-After initialization, use `agent-mem status` to verify storage mode, graph output readiness, and selected provider configuration status.
+After initialization, use `agent-mem status` to verify storage mode, graph output readiness, and Groq configuration status.
 
 ---
 
@@ -154,36 +101,28 @@ agent-mem setup-vscode            # optional if you want .vscode/mcp.json genera
 agent-mem configure-groq          # optional, enables watch handoff and graph enrich
 ```
 
-### 2) Daily Memory Workflow
-
-```bash
-agent-mem checkpoint --stdin
-agent-mem prepare-next
-agent-mem recall "current goal"
-```
-
-### 3) Import Context From Other IDE Chats
+### 2) Import Context From Other IDE Chats
 
 ```bash
 agent-mem migrate --dry-run cursor .
 agent-mem migrate --full cursor claude .
 ```
 
-### 4) Generate Project Knowledge Graph
+### 3) Generate Project Knowledge Graph
 
 ```bash
 agent-mem graph build --compact
 agent-mem graph build --compact --enrich
 ```
 
-### 5) Automated Handoff Watcher
+### 4) Automated Handoff Watcher
 
 ```bash
 agent-mem watch --dry-run --once
 agent-mem watch
 ```
 
-### 6) MCP / IDE Integration Helpers
+### 5) MCP / IDE Integration Helpers
 
 ```bash
 agent-mem print-mcp-json
@@ -209,113 +148,13 @@ agent-mem graph build --compact --enrich
 agent-mem graph build --exclude-file-pattern "tests/*" --exclude-file-pattern "**/migrations/*.py"
 ```
 
-### Common Recipes
-
-```bash
-# Fast baseline build
-agent-mem graph build
-
-# Large repo first pass (trim output size)
-agent-mem graph build --compact
-
-# Large repo focused pass (skip low-value paths)
-agent-mem graph build --compact \
-  --exclude-file-pattern "tests/*" \
-  --exclude-file-pattern "**/migrations/*.py" \
-  --exclude-file-pattern "**/node_modules/*"
-
-# Semantic pass (requires a key for the selected provider)
-agent-mem graph build --enrich
-```
-
 ### Graph Flags
 
 | Flag | Description |
 | --- | --- |
 | `--compact` | Trims long concept/function lists, keeps dashboard/report complete, and writes full lists to `agent-mem-output/Full/` |
-| `--enrich` | Adds inferred concepts/relationships via Groq or Cerebras; deterministic graph output is still generated if enrichment fails |
+| `--enrich` | Adds inferred concepts/relationships via Groq; deterministic graph output is still generated if enrichment fails |
 | `--exclude-file-pattern` | Excludes files by glob pattern; repeatable and useful for tests/generated/vendor paths |
-
-Flag behavior details:
-
-- `--compact` is ideal for very large repos where full notes are noisy.
-- `--enrich` does not block graph generation; if the selected provider is unavailable you still get deterministic notes plus actionable diagnostics.
-- Multiple `--exclude-file-pattern` values are combined.
-- Patterns match both full relative paths and file names.
-
-### Generated Files
-
-- `Index.md`: dashboard and navigation entrypoint
-- `Code/*`: files, classes, functions, and imports
-- `Decisions/*`: extracted decision and blocker signals
-- `Sessions/recent-chats.md`: active and recent context snippets
-- `Concepts.md`: concept inventory with `EXTRACTED` / `INFERRED` labels
-- `Graph-Report.md`: plain-language summary with source breakdown and action suggestions
-
-Open `agent-mem-output/Index.md` in Obsidian for full navigation and backlinks.
-The dashboard includes quick navigation links, operational health status, and a direct link back to project root docs.
-
-### Cerebras support
-
-Groq remains the default provider and retains saved configuration. New configurations
-use `openai/gpt-oss-120b`; explicit saved models are preserved. Older Llama model
-IDs can require enterprise access; select a currently available model explicitly
-if the provider reports it unavailable. Select Cerebras
-for watch handoffs, full migration handoffs, and graph enrichment:
-
-```bash
-# Set CEREBRAS_API_KEY in your shell using your local secret manager.
-agent-mem configure-cerebras --model qwen-3.8-27b --use-env
-agent-mem status
-```
-
-`--use-env` saves the provider and model selection without saving the environment
-credential. Omit it to enter and save a key through a hidden prompt. Model IDs
-are explicit; unavailable models produce an actionable error and are never
-silently replaced. Graph enrichment keeps deterministic output on provider
-failure; migration keeps its existing deterministic handoff fallback.
-
-For a temporary selection without changing configuration, set
-`AGENT_MEM_LLM_PROVIDER=cerebras` and optionally `AGENT_MEM_LLM_MODEL`.
-Cerebras uses `CEREBRAS_API_KEY`; Groq uses `GROQ_API_KEY`. Environment credentials
-and model overrides take precedence over saved values. Run `configure-groq` to
-select Groq again; unset any provider/model environment overrides first.
-
-### Enrich Troubleshooting
-
-If `--enrich` is requested but no inferred output is added, the CLI now prints actionable guidance.
-
-Typical causes and fixes:
-
-- Missing key: configure the selected provider or set `GROQ_API_KEY` / `CEREBRAS_API_KEY`.
-- Invalid key/auth failure: reconfigure key and run `agent-mem status`.
-- Missing client package: reinstall the main package, which includes both provider SDKs.
-- Rate limited: retry after the provider limit resets.
-- Payment required (402): enable billing or quota in the Cerebras account before retrying.
-
-### Large Project Performance
-
-Graph builds now provide progress updates and incremental parse caching:
-
-- Progress lines show scan stage and running cache-hit/reparse counts.
-- Parsed-file cache is stored at `agent-mem-output/.graph-cache.json`.
-- Unchanged Python files are reused from cache on subsequent runs.
-- Use `--compact` and `--exclude-file-pattern` together for best large-repo responsiveness.
-
----
-
-## Daily Workflow
-
-```bash
-agent-mem watch
-agent-mem migrate --extract-only cursor .
-agent-mem checkpoint --stdin
-agent-mem prepare-next
-agent-mem recall "current goal"
-agent-mem graph build --compact
-```
-
-Use this flow to maintain continuity during active implementation and produce graph notes when you need a wider project snapshot.
 
 ---
 
@@ -330,13 +169,6 @@ Bring context from other IDE chat stores into your current project memory.
 - In `--full` mode, saves summary to memory and generates a one-paste handoff prompt
 - Writes portable markdown backups under `.agent-memory/migrations/`
 - Supports safe simulation with `--dry-run`
-
-### Source Notes
-
-- `cursor`: best support on macOS and local `.cursor` storage
-- `claude`: scans `.claude`, `.vscode`, and VS Code workspace storage paths
-- `opencode`: scans local `.opencode` and common OpenCode config paths
-- `antigravity`: best-effort extraction only (depends on local transcript format)
 
 ### Examples
 
@@ -356,27 +188,6 @@ agent-mem migrate --dry-run --full cursor claude opencode .
 - `--full`: extract + save summary to memory + generate handoff + backup
 - `--dry-run`: no file writes, prints preview summary/handoff output
 
-### Recommended Workflow
-
-```bash
-# 1) Preview what will be extracted
-agent-mem migrate --dry-run cursor .
-
-# 2) Persist memory + handoff prompt for actual continuation
-agent-mem migrate --full cursor .
-
-# 3) Paste the generated handoff prompt into your active IDE chat
-#    and let the agent write a fresh structured summary.
-```
-
-### Output Artifacts
-
-- Memory summary:
-  - Obsidian mode: `Memory/Agent-Mem/<project>-<timestamp>-session.md`
-  - Fallback mode: `.agent-memory/memory.md`
-- Handoff outbox: `.agent-memory/outbox/latest-handoff.md`
-- Migration backup: `.agent-memory/migrations/<timestamp>-<sources>.md`
-
 ---
 
 ## Commands Overview
@@ -387,12 +198,10 @@ agent-mem migrate --full cursor .
 | --- | --- | --- |
 | `agent-mem init` | Interactive first-time setup for storage + IDE instruction files + MCP config hints | `agent-mem init` |
 | `agent-mem setup` | Re-run instruction + MCP config setup for current project | `agent-mem setup` |
-| `agent-mem setup-cursor` | Install additive native Cursor lifecycle hooks | `agent-mem setup-cursor` |
 | `agent-mem setup-vscode` | Write `.vscode/mcp.json` with detected/selected Python interpreter | `agent-mem setup-vscode --python /path/to/python3` |
 | `agent-mem print-mcp-json` | Print MCP JSON block for manual paste into IDE config | `agent-mem print-mcp-json` |
 | `agent-mem configure-groq` | Save Groq API key and optional model | `agent-mem configure-groq --model openai/gpt-oss-120b` |
-| `agent-mem configure-cerebras` | Select Cerebras with an environment credential | `agent-mem configure-cerebras --model qwen-3.8-27b --use-env` |
-| `agent-mem status` | Show storage mode, graph readiness, and selected provider status | `agent-mem status` |
+| `agent-mem status` | Show storage mode, graph readiness, and Groq status | `agent-mem status` |
 
 ### Memory and Continuity
 
@@ -402,18 +211,16 @@ agent-mem migrate --full cursor .
 | `agent-mem checkpoint` | Update compact active handoff context file | `agent-mem checkpoint --stdin` |
 | `agent-mem prepare-next` | Print starter block for a fresh follow-up chat | `agent-mem prepare-next` |
 | `agent-mem recall <query>` | Search saved memory for relevant context | `agent-mem recall "current blockers"` |
-
-### Engineering Memory
-
-| Command | Description | Example |
-| --- | --- | --- |
-| `agent-mem engineering record` | Store a sourced decision, constraint or blocker from JSON stdin | `agent-mem engineering record --session feature-a < decision.json` |
-| `agent-mem engineering check` | Flag changed evidence and optional graph impact | `agent-mem engineering check --session feature-a --changed src/app.py` |
-| `agent-mem engineering context` | Retrieve cited records within a declared budget | `agent-mem engineering context "current goal" --session feature-a --token-budget 2048` |
-| `agent-mem engineering review` | Record findings, dismissals, fixes and verification from JSON stdin | `agent-mem engineering review --session feature-a < review.json` |
+| `agent-mem engineering record` | Save a decision, constraint or blocker from JSON | `agent-mem engineering record --session feature-a < decision.json` |
+| `agent-mem engineering list` | List private and explicitly shared records | `agent-mem engineering list --session feature-a` |
+| `agent-mem engineering check` | Find decisions affected by changed files | `agent-mem engineering check --session feature-a --changed src/app.py` |
+| `agent-mem engineering context` | Retrieve relevant context with citations and a token budget | `agent-mem engineering context "update storage" --session feature-a --token-budget 2048` |
+| `agent-mem engineering checkpoint` | Save the current session checkpoint | `agent-mem engineering checkpoint --session feature-a` |
+| `agent-mem engineering prepare-next` | Resume a saved session in a new chat | `agent-mem engineering prepare-next --session feature-a` |
+| `agent-mem engineering share` | Share a selected record across linked worktrees | `agent-mem engineering share RECORD_ID --session feature-a` |
+| `agent-mem engineering export` | Export session memory to Markdown | `agent-mem engineering export memory.md --session feature-a` |
+| `agent-mem engineering review` | Record a finding, dismissal, fix, verification or failed approach | `agent-mem engineering review --session feature-a < review.json` |
 | `agent-mem engineering reviews` | Retrieve review history and failed approaches | `agent-mem engineering reviews --session feature-a --goal "storage"` |
-| `agent-mem engineering share` | Explicitly share a private record across linked worktrees | `agent-mem engineering share RECORD_ID --session feature-a` |
-| `agent-mem engineering prepare-next` | Print a durable session handoff | `agent-mem engineering prepare-next --session feature-a` |
 
 ### Migration
 
@@ -464,40 +271,24 @@ If Obsidian is unavailable, memory is written to:
 
 - `.agent-memory/active.md`
 - `.agent-memory/memory.md`
+- `.agent-memory/engineering/` for structured session records
+
+Set `AGENT_MEM_STORAGE_DIR` to use a different local directory for structured memory.
 
 ---
 
-## Troubleshooting
+## What's Fixed in 0.8.0
 
-- If `--enrich` does not apply inferred content, run `agent-mem status` and verify the selected provider key/model configuration.
-- If graph output is too large, use `--compact`.
-- For large repos, exclude low-value paths with repeatable `--exclude-file-pattern` options.
-
----
-
-## What Changed in 0.8.0
-
-The five engineering-memory phases are implemented alongside optional Cerebras
-support, consistent local storage selection, improved credential redaction,
-graph schema-13 compatibility and Cursor prompt continuation fixes.
-See [the full feature guide](docs/FEATURES.md) for commands and limitations.
-
-## Previous Fixes in 0.7.2
-
-Ten reliability bugs fixed across the core modules.
-
-| # | Module | Bug | Fix |
-|---|---|---|---|
-| 1 | `memory.py` | Obsidian session glob used raw project name — never matched any file | Changed to `_slug(project_name)` to match how session files are written |
-| 2 | `lang_parsers.py` | Arrow function records duplicated — `lexical_declaration` fell through to unconditional child walk | Added `return` after handling, matching the `class_declaration` pattern |
-| 3 | `watcher.py` | Obsidian users always got empty `recent_memory` in handoff prompts — fallback file is empty in Obsidian mode | Now reads recent Obsidian session files via `list_recent_session_files` when Obsidian enabled |
-| 4 | `mcp_server.py` | `_session` state bled across MCP connections — `memory_loaded=True` from one caller persisted to the next | Reset `memory_loaded` at start of `query_memory` and after `summarize_to_obsidian` |
-| 5 | `migrator.py` | Candidate file sort prioritised recency over relevance — low-score stale files could beat fresh matches | Sort key flipped to `(score, mtime)` so relevance wins, recency is tiebreaker |
-| 6 | `migrator.py` | `.vscode` included in Claude extraction roots — scanned editor config JSON as chat transcripts | Removed `.vscode` from roots; only `.claude` and system storage paths are scanned |
-| 7 | `mcp_server.py` | `list_recent_sessions` ignored `count` param in fallback mode — always returned one file regardless | Now uses the `files` list returned by `list_recent_session_files`, which already respects `count` |
-| 8 | `watcher.py` | `git diff --numstat` missed staged changes — watcher saw 0 diff lines when all changes were staged | Changed to `git diff HEAD --numstat` which covers both staged and unstaged |
-| 9 | `memory.py` | Dead condition `"." not in match` in `_extract_file_links` — regex guarantees a `.` is always present | Removed the unreachable branch |
-| 10 | `config.py` | Module-level `CONFIG_DIR`/`CONFIG_FILE` reassigned on every call via `global` — dead assignments | Removed module-level globals and `global` statements; functions use local vars |
+| Change | Use case |
+| --- | --- |
+| Separate MCP connection state | Keep simultaneous agent sessions independent |
+| Durable session handles | Reconnect to the same saved session after restarting |
+| Evidence freshness checks | Review decisions when their supporting files change |
+| Latest review-result tracking | Show a newer failure instead of an outdated passing result |
+| Scoped session exports | Keep exports from different branches and sessions separate |
+| Atomic memory writes | Preserve saved context across interrupted writes |
+| Improved path handling | Preserve file paths containing spaces in summaries and handoffs |
+| Credential redaction | Remove configured secrets from stored context |
 
 ---
 
