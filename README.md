@@ -17,12 +17,25 @@
 [![extraction F1](https://img.shields.io/badge/extraction%20F1-1.00-brightgreen)](https://github.com/atharvavdeo/agent-mem)
 [![TUI](https://img.shields.io/badge/TUI-Textual-1d4ed8)](https://github.com/Textualize/textual)
 [![Featured on Plug and Ship](https://plugandship.dev/badge/easy-agent-mem.svg)](https://plugandship.dev/p/easy-agent-mem)
+[![Glama MCP](https://img.shields.io/badge/Glama-MCP%20listing-7c3aed)](https://glama.ai/mcp/servers/atharvavdeo/agent-mem)
+[![Agent Skill](https://img.shields.io/badge/Agent%20Skill-install%20from%20GitHub-2563eb)](https://github.com/atharvavdeo/agent-mem/tree/main/skills/easy-agent-mem)
 
 Automatic context compression and persistent memory for AI coding agents.
 
 `agent-mem` saves coding decisions, constraints and session context so you can continue work across chats. Search previous decisions, check whether their supporting files have changed, and carry relevant context into your next session.
 
 ---
+
+## MCP and skill listings
+
+[![Agensi skill: in review](https://img.shields.io/badge/Agensi%20skill-in%20review-eab308)](https://www.agensi.io/dashboard#my-skills)
+[![MCP Market server: submitted](https://img.shields.io/badge/MCP%20Market%20server-submitted-eab308)](https://mcpmarket.com/submit)
+[![MCP Market skill: submitted](https://img.shields.io/badge/MCP%20Market%20skill-submitted-eab308)](https://mcpmarket.com/submit?type=skill)
+[![mcp.tc: awaiting review](https://img.shields.io/badge/mcp.tc-awaiting%20review-eab308)](https://mcp.tc/s/EtQEL5tmbkOM785j)
+
+Glama and Plug and Ship have public MCP pages. The companion skill is available on GitHub. Agensi, MCP Market (server and skill), and mcp.tc are awaiting review; their badges link to the creator dashboard, submission forms, or submission receipt rather than claiming an approved listing. Agensi's dashboard requires the creator's account.
+
+[All marketplace links and publication status](docs/MARKETPLACE-LINKS.md).
 
 ## Why Use agent-mem
 

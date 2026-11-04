@@ -1,5 +1,16 @@
 # easy-agent-mem — Persistent Coding Memory
 
+[![Glama MCP](https://img.shields.io/badge/Glama-MCP%20listing-7c3aed)](https://glama.ai/mcp/servers/atharvavdeo/agent-mem)
+[![Agent Skill](https://img.shields.io/badge/Agent%20Skill-install%20from%20GitHub-2563eb)](https://github.com/atharvavdeo/agent-mem/tree/main/skills/easy-agent-mem)
+[![Featured on Plug and Ship](https://plugandship.dev/badge/easy-agent-mem.svg)](https://plugandship.dev/p/easy-agent-mem)
+
+[![Agensi skill: in review](https://img.shields.io/badge/Agensi%20skill-in%20review-eab308)](https://www.agensi.io/dashboard#my-skills)
+[![MCP Market server: submitted](https://img.shields.io/badge/MCP%20Market%20server-submitted-eab308)](https://mcpmarket.com/submit)
+[![MCP Market skill: submitted](https://img.shields.io/badge/MCP%20Market%20skill-submitted-eab308)](https://mcpmarket.com/submit?type=skill)
+[![mcp.tc: awaiting review](https://img.shields.io/badge/mcp.tc-awaiting%20review-eab308)](https://mcp.tc/s/EtQEL5tmbkOM785j)
+
+[Marketplace links and review status](../../docs/MARKETPLACE-LINKS.md). MCP badges refer to the companion runtime; pending badges do not indicate marketplace approval.
+
 Companion skill for the open-source [easy-agent-mem](https://pypi.org/project/easy-agent-mem/) CLI and local MCP server. Retrieve project context, save sourced decisions, review changed evidence and carry a durable handoff into a fresh coding chat. Optional Obsidian export; local fallback is supported.
 
 ## Install the skill
