@@ -14,6 +14,20 @@ Status checked 4 November 2026. A submitted entry is not an approved public list
 
 mcp.tc reserves [the future listing URL](https://mcp.tc/i/agent-mem), which starts working only after approval. Agensi has no confirmed public skill URL yet. MCP Market has not supplied confirmed public listing URLs. The companion-skill submission on Plug and Ship resolved to the same product page, so it is one listing, not two.
 
+## How to know when a submission is accepted
+
+| Platform | Confirmation to look for | Where to check |
+| --- | --- | --- |
+| Agensi | Creator Studio changes the skill from **Pending Review** to **Live**, and provides a public listing link. Its published review estimate is usually 24–48 hours; this is not a guarantee. | [Creator Studio](https://www.agensi.io/dashboard#my-skills) |
+| MCP Market — server and skill | The platform promises an email when each listing goes live. The free queue currently estimates 4–6 weeks; the two entries are separate. Save each approved public URL. | Submission email inbox; [submission information](https://mcpmarket.com/submit) |
+| mcp.tc | Approval email plus a public listing. The receipt currently says **Waiting for review**; the reserved public URL works after approval. | [Status receipt](https://mcp.tc/s/EtQEL5tmbkOM785j) |
+| Glama | Already accepted and public, with Glama release **0.8.0**. Tool-quality/coherence evaluation is separate from listing approval. | [Listing](https://glama.ai/mcp/servers/atharvavdeo/agent-mem) |
+| Plug and Ship | Product page is already public. Scheduled launch visibility and verified ownership are separate from the existence of that page. | [Product page](https://plugandship.dev/p/easy-agent-mem) |
+
+These README badges are **static status labels**, not live approval monitors. No automatic monitoring or notification job has been configured. When approval is confirmed, replace the pending label and its destination with the exact public listing URL in both READMEs and this table. Do not assume a missing email means rejection; check spam and the available dashboard/status page.
+
+Review guidance: [Agensi seller information](https://www.agensi.io/sell), [MCP Market submission information](https://mcpmarket.com/submit), and the [mcp.tc receipt](https://mcp.tc/s/EtQEL5tmbkOM785j).
+
 ## Other platforms researched
 
 These are platform links, not claims that easy-agent-mem is listed there.

@@ -2,23 +2,22 @@
 
 ![easy-agent-mem header](https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/repo-header.png)
 
-[![GitHub release](https://img.shields.io/github/v/release/atharvavdeo/agent-mem)](https://github.com/atharvavdeo/agent-mem/releases/latest)
-[![PyPI version](https://img.shields.io/pypi/v/easy-agent-mem?cacheSeconds=0)](https://pypi.org/project/easy-agent-mem/)
-[![Python version](https://img.shields.io/pypi/pyversions/easy-agent-mem)](https://pypi.org/project/easy-agent-mem/)
-[![License](https://img.shields.io/pypi/l/easy-agent-mem)](https://github.com/atharvavdeo/agent-mem/blob/main/LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/atharvavdeo/agent-mem?style=social)](https://github.com/atharvavdeo/agent-mem/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/atharvavdeo/agent-mem?style=social)](https://github.com/atharvavdeo/agent-mem/network/members)
-[![GitHub issues](https://img.shields.io/github/issues/atharvavdeo/agent-mem)](https://github.com/atharvavdeo/agent-mem/issues)
-[![PyPI downloads](https://img.shields.io/pypi/dm/easy-agent-mem)](https://pypi.org/project/easy-agent-mem/)
-[![Last commit](https://img.shields.io/github/last-commit/atharvavdeo/agent-mem)](https://github.com/atharvavdeo/agent-mem/commits/main)
-[![MCP compatible](https://img.shields.io/badge/MCP-compatible-7c3aed)](https://github.com/atharvavdeo/agent-mem)
-[![parser: tree-sitter](https://img.shields.io/badge/parser-tree--sitter-orange)](https://tree-sitter.github.io/tree-sitter/)
-[![languages](https://img.shields.io/badge/languages-Python%20%7C%20TypeScript%20%7C%20JavaScript-blue)](https://github.com/atharvavdeo/agent-mem)
-[![extraction F1](https://img.shields.io/badge/extraction%20F1-1.00-brightgreen)](https://github.com/atharvavdeo/agent-mem)
-[![TUI](https://img.shields.io/badge/TUI-Textual-1d4ed8)](https://github.com/Textualize/textual)
-[![Featured on Plug and Ship](https://plugandship.dev/badge/easy-agent-mem.svg)](https://plugandship.dev/p/easy-agent-mem)
-[![Glama MCP](https://img.shields.io/badge/Glama-MCP%20listing-7c3aed)](https://glama.ai/mcp/servers/atharvavdeo/agent-mem)
-[![Agent Skill](https://img.shields.io/badge/Agent%20Skill-install%20from%20GitHub-2563eb)](https://github.com/atharvavdeo/agent-mem/tree/main/skills/easy-agent-mem)
+<p>
+  <a href="https://github.com/atharvavdeo/agent-mem/releases/latest"><img src="https://img.shields.io/github/v/release/atharvavdeo/agent-mem?style=flat-square&amp;logo=github&amp;logoColor=white" alt="GitHub release" height="20"></a>
+  <a href="https://pypi.org/project/easy-agent-mem/"><img src="https://img.shields.io/pypi/v/easy-agent-mem?cacheSeconds=0&amp;style=flat-square&amp;logo=pypi&amp;logoColor=white" alt="PyPI version" height="20"></a>
+  <a href="https://pypi.org/project/easy-agent-mem/"><img src="https://img.shields.io/pypi/pyversions/easy-agent-mem?style=flat-square&amp;logo=python&amp;logoColor=white" alt="Python version" height="20"></a>
+  <a href="https://github.com/atharvavdeo/agent-mem/blob/main/LICENSE"><img src="https://img.shields.io/pypi/l/easy-agent-mem?style=flat-square" alt="License" height="20"></a>
+  <a href="https://github.com/atharvavdeo/agent-mem/stargazers"><img src="https://img.shields.io/github/stars/atharvavdeo/agent-mem?style=flat-square&amp;logo=github&amp;logoColor=white" alt="GitHub stars" height="20"></a>
+  <a href="https://github.com/atharvavdeo/agent-mem/network/members"><img src="https://img.shields.io/github/forks/atharvavdeo/agent-mem?style=flat-square&amp;logo=github&amp;logoColor=white" alt="GitHub forks" height="20"></a>
+  <a href="https://github.com/atharvavdeo/agent-mem/issues"><img src="https://img.shields.io/github/issues/atharvavdeo/agent-mem?style=flat-square&amp;logo=github&amp;logoColor=white" alt="GitHub issues" height="20"></a>
+  <a href="https://pypi.org/project/easy-agent-mem/"><img src="https://img.shields.io/pypi/dm/easy-agent-mem?style=flat-square&amp;logo=pypi&amp;logoColor=white" alt="PyPI downloads" height="20"></a>
+  <a href="https://github.com/atharvavdeo/agent-mem/commits/main"><img src="https://img.shields.io/github/last-commit/atharvavdeo/agent-mem?style=flat-square&amp;logo=github&amp;logoColor=white" alt="Last commit" height="20"></a>
+  <a href="https://github.com/atharvavdeo/agent-mem"><img src="https://img.shields.io/badge/MCP-compatible-7c3aed?style=flat-square&amp;logo=modelcontextprotocol&amp;logoColor=white" alt="MCP compatible" height="20"></a>
+  <a href="https://tree-sitter.github.io/tree-sitter/"><img src="https://img.shields.io/badge/parser-tree--sitter-orange?style=flat-square&amp;logo=treesitter&amp;logoColor=white" alt="parser: tree-sitter" height="20"></a>
+  <a href="https://github.com/atharvavdeo/agent-mem"><img src="https://img.shields.io/badge/languages-Python%20%7C%20TypeScript%20%7C%20JavaScript-blue?style=flat-square&amp;logo=javascript&amp;logoColor=white" alt="languages" height="20"></a>
+  <a href="https://github.com/atharvavdeo/agent-mem"><img src="https://img.shields.io/badge/extraction%20F1-1.00-brightgreen?style=flat-square" alt="extraction F1" height="20"></a>
+  <a href="https://github.com/Textualize/textual"><img src="https://img.shields.io/badge/TUI-Textual-1d4ed8?style=flat-square&amp;logo=python&amp;logoColor=white" alt="TUI" height="20"></a>
+</p>
 
 Automatic context compression and persistent memory for AI coding agents.
 
@@ -28,14 +27,27 @@ Automatic context compression and persistent memory for AI coding agents.
 
 ## MCP and skill listings
 
-[![Agensi skill: in review](https://img.shields.io/badge/Agensi%20skill-in%20review-eab308)](https://www.agensi.io/dashboard#my-skills)
-[![MCP Market server: submitted](https://img.shields.io/badge/MCP%20Market%20server-submitted-eab308)](https://mcpmarket.com/submit)
-[![MCP Market skill: submitted](https://img.shields.io/badge/MCP%20Market%20skill-submitted-eab308)](https://mcpmarket.com/submit?type=skill)
-[![mcp.tc: awaiting review](https://img.shields.io/badge/mcp.tc-awaiting%20review-eab308)](https://mcp.tc/s/EtQEL5tmbkOM785j)
+<p>
+  <a href="https://glama.ai/mcp/servers/atharvavdeo/agent-mem"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/glama.png" alt="Glama: MCP live" width="244" height="36"></a>
+  <a href="https://plugandship.dev/p/easy-agent-mem"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/plug-and-ship.png" alt="Plug and Ship: Public page" width="244" height="36"></a>
+  <a href="https://github.com/atharvavdeo/agent-mem/tree/main/skills/easy-agent-mem"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/github-skill.png" alt="Agent skill: GitHub" width="244" height="36"></a>
+</p>
 
-Glama and Plug and Ship have public MCP pages. The companion skill is available on GitHub. Agensi, MCP Market (server and skill), and mcp.tc are awaiting review; their badges link to the creator dashboard, submission forms, or submission receipt rather than claiming an approved listing. Agensi's dashboard requires the creator's account.
+<details>
+<summary>Submissions awaiting review</summary>
 
-[All marketplace links and publication status](docs/MARKETPLACE-LINKS.md).
+<p>
+  <a href="https://www.agensi.io/dashboard#my-skills"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/agensi.png" alt="Agensi: In review" width="244" height="36"></a>
+  <a href="https://mcpmarket.com/submit"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/mcp-market-server.png" alt="MCP Market: MCP queued" width="244" height="36"></a>
+  <a href="https://mcpmarket.com/submit?type=skill"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/mcp-market-skill.png" alt="MCP Market: Skill queued" width="244" height="36"></a>
+  <a href="https://mcp.tc/s/EtQEL5tmbkOM785j"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/mcp-tc.png" alt="mcp.tc: In review" width="244" height="36"></a>
+</p>
+
+Agensi is in review. MCP Market has separate server and skill submissions in its free queue. mcp.tc is waiting for human review. Pending links open the creator dashboard, submission forms, or status receipt; they are not approved listing pages.
+
+</details>
+
+[All listings, approval checks and platform links](docs/MARKETPLACE-LINKS.md). Status labels were checked on **4 November 2026** and are updated manually.
 
 ## Why Use agent-mem
 

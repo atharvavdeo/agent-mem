@@ -1,0 +1,65 @@
+[
+  {
+    "file": "assets/listing-badges/glama.png",
+    "platform": "Glama",
+    "status": "MCP live",
+    "logo_source": "https://glama.ai/apple-touch-icon.png",
+    "link": "https://glama.ai/mcp/servers/atharvavdeo/agent-mem",
+    "display_width": 244,
+    "display_height": 36
+  },
+  {
+    "file": "assets/listing-badges/plug-and-ship.png",
+    "platform": "Plug and Ship",
+    "status": "Public page",
+    "logo_source": "https://plugandship.dev/apple-icon.png",
+    "link": "https://plugandship.dev/p/easy-agent-mem",
+    "display_width": 244,
+    "display_height": 36
+  },
+  {
+    "file": "assets/listing-badges/github-skill.png",
+    "platform": "Agent skill",
+    "status": "GitHub",
+    "logo_source": "https://github.com/favicon.ico",
+    "link": "https://github.com/atharvavdeo/agent-mem/tree/main/skills/easy-agent-mem",
+    "display_width": 244,
+    "display_height": 36
+  },
+  {
+    "file": "assets/listing-badges/agensi.png",
+    "platform": "Agensi",
+    "status": "In review",
+    "logo_source": "https://www.agensi.io/apple-touch-icon.png",
+    "link": "https://www.agensi.io/dashboard#my-skills",
+    "display_width": 244,
+    "display_height": 36
+  },
+  {
+    "file": "assets/listing-badges/mcp-market-server.png",
+    "platform": "MCP Market",
+    "status": "MCP queued",
+    "logo_source": "https://mcpmarket.com/favicon.png",
+    "link": "https://mcpmarket.com/submit",
+    "display_width": 244,
+    "display_height": 36
+  },
+  {
+    "file": "assets/listing-badges/mcp-market-skill.png",
+    "platform": "MCP Market",
+    "status": "Skill queued",
+    "logo_source": "https://mcpmarket.com/favicon.png",
+    "link": "https://mcpmarket.com/submit?type=skill",
+    "display_width": 244,
+    "display_height": 36
+  },
+  {
+    "file": "assets/listing-badges/mcp-tc.png",
+    "platform": "mcp.tc",
+    "status": "In review",
+    "logo_source": "https://mcp.tc/apple-touch-icon.png?v=2",
+    "link": "https://mcp.tc/s/EtQEL5tmbkOM785j",
+    "display_width": 244,
+    "display_height": 36
+  }
+]

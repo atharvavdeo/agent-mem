@@ -1,17 +1,30 @@
 # easy-agent-mem — Persistent Coding Memory
 
-[![Glama MCP](https://img.shields.io/badge/Glama-MCP%20listing-7c3aed)](https://glama.ai/mcp/servers/atharvavdeo/agent-mem)
-[![Agent Skill](https://img.shields.io/badge/Agent%20Skill-install%20from%20GitHub-2563eb)](https://github.com/atharvavdeo/agent-mem/tree/main/skills/easy-agent-mem)
-[![Featured on Plug and Ship](https://plugandship.dev/badge/easy-agent-mem.svg)](https://plugandship.dev/p/easy-agent-mem)
-
-[![Agensi skill: in review](https://img.shields.io/badge/Agensi%20skill-in%20review-eab308)](https://www.agensi.io/dashboard#my-skills)
-[![MCP Market server: submitted](https://img.shields.io/badge/MCP%20Market%20server-submitted-eab308)](https://mcpmarket.com/submit)
-[![MCP Market skill: submitted](https://img.shields.io/badge/MCP%20Market%20skill-submitted-eab308)](https://mcpmarket.com/submit?type=skill)
-[![mcp.tc: awaiting review](https://img.shields.io/badge/mcp.tc-awaiting%20review-eab308)](https://mcp.tc/s/EtQEL5tmbkOM785j)
-
-[Marketplace links and review status](../../docs/MARKETPLACE-LINKS.md). MCP badges refer to the companion runtime; pending badges do not indicate marketplace approval.
-
 Companion skill for the open-source [easy-agent-mem](https://pypi.org/project/easy-agent-mem/) CLI and local MCP server. Retrieve project context, save sourced decisions, review changed evidence and carry a durable handoff into a fresh coding chat. Optional Obsidian export; local fallback is supported.
+
+## MCP and skill listings
+
+<p>
+  <a href="https://glama.ai/mcp/servers/atharvavdeo/agent-mem"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/glama.png" alt="Glama: MCP live" width="244" height="36"></a>
+  <a href="https://plugandship.dev/p/easy-agent-mem"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/plug-and-ship.png" alt="Plug and Ship: Public page" width="244" height="36"></a>
+  <a href="https://github.com/atharvavdeo/agent-mem/tree/main/skills/easy-agent-mem"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/github-skill.png" alt="Agent skill: GitHub" width="244" height="36"></a>
+</p>
+
+<details>
+<summary>Submissions awaiting review</summary>
+
+<p>
+  <a href="https://www.agensi.io/dashboard#my-skills"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/agensi.png" alt="Agensi: In review" width="244" height="36"></a>
+  <a href="https://mcpmarket.com/submit"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/mcp-market-server.png" alt="MCP Market: MCP queued" width="244" height="36"></a>
+  <a href="https://mcpmarket.com/submit?type=skill"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/mcp-market-skill.png" alt="MCP Market: Skill queued" width="244" height="36"></a>
+  <a href="https://mcp.tc/s/EtQEL5tmbkOM785j"><img src="https://raw.githubusercontent.com/atharvavdeo/agent-mem/main/assets/listing-badges/mcp-tc.png" alt="mcp.tc: In review" width="244" height="36"></a>
+</p>
+
+Agensi is in review. MCP Market has separate server and skill submissions in its free queue. mcp.tc is waiting for human review. Pending links open the creator dashboard, submission forms, or status receipt; they are not approved listing pages.
+
+</details>
+
+[All listings, approval checks and platform links](../../docs/MARKETPLACE-LINKS.md). Status labels were checked on **4 November 2026** and are updated manually.
 
 ## Install the skill
 
