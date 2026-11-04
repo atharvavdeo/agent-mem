@@ -16,6 +16,7 @@
 [![languages](https://img.shields.io/badge/languages-Python%20%7C%20TypeScript%20%7C%20JavaScript-blue)](https://github.com/atharvavdeo/agent-mem)
 [![extraction F1](https://img.shields.io/badge/extraction%20F1-1.00-brightgreen)](https://github.com/atharvavdeo/agent-mem)
 [![TUI](https://img.shields.io/badge/TUI-Textual-1d4ed8)](https://github.com/Textualize/textual)
+[![Featured on Plug and Ship](https://plugandship.dev/badge/easy-agent-mem.svg)](https://plugandship.dev/p/easy-agent-mem)
 
 Automatic context compression and persistent memory for AI coding agents.
 
